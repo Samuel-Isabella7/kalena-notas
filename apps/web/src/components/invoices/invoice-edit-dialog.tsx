@@ -188,7 +188,7 @@ export function InvoiceEditDialog({ invoice, open, onOpenChange, onChanged, canL
           </div>
 
           <div>
-            <Label>Nº do documento</Label>
+            <Label>Número da NF</Label>
             <Input
               className="mt-1.5"
               value={form.numeroDocumento}

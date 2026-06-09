@@ -303,7 +303,8 @@ export class OmieService {
       codigo_categoria: input.categoriaCodigo,
       id_conta_corrente: Number(input.contaCorrenteId),
     };
-    if (input.numeroDocumento) param.numero_documento = input.numeroDocumento;
+    // O número da NF vai no campo "Nota Fiscal" da Omie (numero_documento_fiscal), não em "número do documento"
+    if (input.numeroDocumento) param.numero_documento_fiscal = input.numeroDocumento;
     if (input.dataEmissao) param.data_emissao = this.toBrDate(input.dataEmissao);
     if (input.observacao) param.observacao = input.observacao;
 
