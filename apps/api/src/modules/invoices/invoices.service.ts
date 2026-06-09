@@ -42,6 +42,7 @@ export class InvoicesService {
     }
 
     const [y, m, d] = dateStr.split('-').map(Number);
+    const kindLabel = kind === InvoiceKind.SERVICO ? 'Serviço' : 'ICMS';
 
     // Lê o PDF (pré-preenchimento) e faz upload em paralelo
     const [extracted, stored] = await Promise.all([
@@ -50,6 +51,7 @@ export class InvoicesService {
         buffer: file.buffer,
         fileName: file.originalname,
         mimeType: file.mimetype,
+        kindLabel,
         year: y,
         month: m,
         day: d,

@@ -16,6 +16,7 @@ interface UploadParams {
   buffer: Buffer;
   fileName: string;
   mimeType: string;
+  kindLabel: string; // "Serviço" ou "ICMS" — pasta de topo
   year: number;
   month: number; // 1-12
   day: number;
@@ -88,17 +89,18 @@ export class DriveService implements OnModuleInit {
 
   /** Faz upload do arquivo organizando em subpastas Ano/Mês/Dia. */
   async upload(params: UploadParams): Promise<StoredFile> {
-    const { buffer, fileName, mimeType, year, month, day } = params;
+    const { buffer, fileName, mimeType, kindLabel, year, month, day } = params;
     const monthFolder = String(month).padStart(2, '0');
     const dayFolder = String(day).padStart(2, '0');
     const safeName = `${crypto.randomUUID().slice(0, 8)}_${this.sanitize(fileName)}`;
 
     if (!this.drive) {
-      return this.saveLocal(buffer, safeName, [String(year), monthFolder, dayFolder]);
+      return this.saveLocal(buffer, safeName, [kindLabel, String(year), monthFolder, dayFolder]);
     }
 
     try {
-      const yearId = await this.ensureFolder(String(year), this.rootFolderId);
+      const kindId = await this.ensureFolder(kindLabel, this.rootFolderId);
+      const yearId = await this.ensureFolder(String(year), kindId);
       const monthId = await this.ensureFolder(monthFolder, yearId);
       const dayId = await this.ensureFolder(dayFolder, monthId);
 
