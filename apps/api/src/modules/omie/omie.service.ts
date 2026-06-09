@@ -206,29 +206,73 @@ export class OmieService {
   }
 
   // ---------- Fornecedor ----------
-  private async findOrCreateFornecedor(
-    cred: OmieCredential,
-    doc: string,
-    nome: string,
-  ): Promise<number> {
-    const cnpj = doc.replace(/\D/g, '');
-    // Tenta consultar pelo documento
+  /** Busca dados cadastrais do CNPJ numa base pública gratuita (BrasilAPI). */
+  private async lookupCnpj(cnpj: string): Promise<any | null> {
+    try {
+      const res = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+        timeout: 8000,
+      });
+      return res.data || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Procura um fornecedor já cadastrado pelo CNPJ. Retorna o código Omie ou null. */
+  private async findFornecedor(cred: OmieCredential, cnpj: string): Promise<number | null> {
+    // 1) ConsultarCliente direto pelo CNPJ
     try {
       const found = await this.call<any>('/geral/clientes/', 'ConsultarCliente', cred, [
         { cnpj_cpf: cnpj },
       ]);
       if (found?.codigo_cliente_omie) return Number(found.codigo_cliente_omie);
     } catch {
-      // não encontrado -> cria
+      // segue para a próxima tentativa
     }
 
-    const created = await this.call<any>('/geral/clientes/', 'IncluirCliente', cred, [
-      {
-        codigo_cliente_integracao: `KNF-${cnpj}`,
-        razao_social: nome || `Fornecedor ${cnpj}`,
-        cnpj_cpf: cnpj,
-      },
-    ]);
+    // 2) ListarClientes com filtro de CNPJ (pega o primeiro resultado)
+    try {
+      const res = await this.call<any>('/geral/clientes/', 'ListarClientes', cred, [
+        { pagina: 1, registros_por_pagina: 50, clientesFiltro: { cnpj_cpf: cnpj } },
+      ]);
+      const arr: any[] = res?.clientes_cadastro || [];
+      if (arr.length && arr[0]?.codigo_cliente_omie) return Number(arr[0].codigo_cliente_omie);
+    } catch {
+      // não encontrado
+    }
+
+    return null;
+  }
+
+  private async findOrCreateFornecedor(
+    cred: OmieCredential,
+    doc: string,
+    nome: string,
+  ): Promise<number> {
+    const cnpj = doc.replace(/\D/g, '');
+
+    // Prioridade: usar o fornecedor JÁ cadastrado na Omie
+    const existing = await this.findFornecedor(cred, cnpj);
+    if (existing) return existing;
+
+    // Só cria se realmente não existir. A Omie exige o endereço (ao menos o Estado);
+    // buscamos os dados do CNPJ numa base pública.
+    const info = await this.lookupCnpj(cnpj);
+    const estado = (info?.uf || (cred.account === 'RJ' ? 'RJ' : 'SP')).toString().toUpperCase();
+
+    const param: any = {
+      codigo_cliente_integracao: `KNF-${cnpj}`,
+      razao_social: nome || info?.razao_social || `Fornecedor ${cnpj}`,
+      cnpj_cpf: cnpj,
+      estado,
+    };
+    if (info?.municipio) param.cidade = String(info.municipio);
+    if (info?.logradouro) param.endereco = String(info.logradouro);
+    if (info?.numero) param.endereco_numero = String(info.numero);
+    if (info?.bairro) param.bairro = String(info.bairro);
+    if (info?.cep) param.cep = String(info.cep).replace(/\D/g, '');
+
+    const created = await this.call<any>('/geral/clientes/', 'IncluirCliente', cred, [param]);
     if (!created?.codigo_cliente_omie) {
       throw new BadRequestException('Não foi possível obter/criar o fornecedor na Omie.');
     }
