@@ -155,6 +155,7 @@ export class DriveService implements OnModuleInit {
       fields: 'files(id, name)',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
+      corpora: 'allDrives',
       spaces: 'drive',
     });
 
