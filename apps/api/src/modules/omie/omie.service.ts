@@ -227,7 +227,6 @@ export class OmieService {
         codigo_cliente_integracao: `KNF-${cnpj}`,
         razao_social: nome || `Fornecedor ${cnpj}`,
         cnpj_cpf: cnpj,
-        cliente_fornecedor: 'F',
       },
     ]);
     if (!created?.codigo_cliente_omie) {
