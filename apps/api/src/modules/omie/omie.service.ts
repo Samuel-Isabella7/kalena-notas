@@ -117,18 +117,50 @@ export class OmieService {
     }
   }
 
+  /** Decodifica entidades HTML que a Omie às vezes retorna (&lt; &gt; &amp; etc.). */
+  private decode(s: string): string {
+    return s
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&')
+      .trim();
+  }
+
   // ---------- Categorias ----------
   async listCategorias(account: OmieAccount): Promise<OmieOption[]> {
     if (this.categoriaCache.has(account)) return this.categoriaCache.get(account)!;
     const cred = this.getCredential(account);
-    const data = await this.call<any>('/geral/categorias/', 'ListarCategorias', cred, [
-      { pagina: 1, registros_por_pagina: 500 },
-    ]);
-    const arr: any[] = data?.categoria_cadastro || [];
-    const options = arr
-      // contas a pagar usam categorias de despesa (código inicia com "2.") — mas listamos todas válidas
-      .filter((c) => c.codigo && (c.conta_despesa === 'S' || c.conta_inativa !== 'S'))
-      .map((c) => ({ codigo: String(c.codigo), descricao: String(c.descricao ?? c.codigo) }));
+
+    const all: any[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+    do {
+      const data = await this.call<any>('/geral/categorias/', 'ListarCategorias', cred, [
+        { pagina, registros_por_pagina: 50 },
+      ]);
+      totalPaginas = Number(data?.total_de_paginas || 1);
+      for (const c of data?.categoria_cadastro || []) all.push(c);
+      pagina++;
+    } while (pagina <= totalPaginas && pagina <= 50);
+
+    const options = all
+      // exclui apenas inativas, totalizadoras (agrupadoras) e ocultas
+      .filter(
+        (c) =>
+          c.codigo &&
+          c.conta_inativa !== 'S' &&
+          c.totalizadora !== 'S' &&
+          c.nao_exibir !== 'S',
+      )
+      .map((c) => ({
+        codigo: String(c.codigo),
+        descricao: this.decode(String(c.descricao ?? c.codigo)),
+      }))
+      .sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+
     this.categoriaCache.set(account, options);
     return options;
   }
@@ -137,16 +169,28 @@ export class OmieService {
   async listContasCorrentes(account: OmieAccount): Promise<OmieOption[]> {
     if (this.contaCorrenteCache.has(account)) return this.contaCorrenteCache.get(account)!;
     const cred = this.getCredential(account);
-    const data = await this.call<any>('/geral/contacorrente/', 'ListarContasCorrentes', cred, [
-      { pagina: 1, registros_por_pagina: 200, apenas_importado_api: 'N' },
-    ]);
-    const arr: any[] = data?.ListarContasCorrentes || data?.conta_corrente_cadastro || [];
-    const options = arr
-      .filter((c) => c.nCodCC ?? c.codigo)
+
+    const all: any[] = [];
+    let pagina = 1;
+    let totalPaginas = 1;
+    do {
+      const data = await this.call<any>('/geral/contacorrente/', 'ListarContasCorrentes', cred, [
+        { pagina, registros_por_pagina: 50, apenas_importado_api: 'N' },
+      ]);
+      totalPaginas = Number(data?.total_de_paginas || 1);
+      const arr: any[] = data?.ListarContasCorrentes || data?.conta_corrente_cadastro || [];
+      for (const c of arr) all.push(c);
+      pagina++;
+    } while (pagina <= totalPaginas && pagina <= 50);
+
+    const options = all
+      .filter((c) => (c.nCodCC ?? c.codigo) && c.inativo !== 'S')
       .map((c) => ({
         codigo: String(c.nCodCC ?? c.codigo),
-        descricao: String(c.descricao ?? c.cDesc ?? c.nCodCC ?? c.codigo),
-      }));
+        descricao: this.decode(String(c.descricao ?? c.cDesc ?? c.nCodCC ?? c.codigo)),
+      }))
+      .sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+
     this.contaCorrenteCache.set(account, options);
     return options;
   }
