@@ -1,0 +1,18 @@
+{
+  "name": "kalena-notas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de Notas Fiscais Kalena - anexo, Google Drive e lançamento na Omie",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "api:dev": "npm --workspace @kalena-notas/api run start:dev",
+    "web:dev": "npm --workspace @kalena-notas/web run dev",
+    "api:install": "npm --workspace @kalena-notas/api install",
+    "web:install": "npm --workspace @kalena-notas/web install"
+  }
+}

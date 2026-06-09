@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: kalena_notas_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kalena
+      POSTGRES_PASSWORD: kalena_dev
+      POSTGRES_DB: kalena_notas
+    ports:
+      - "5433:5432"
+    volumes:
+      - kalena_notas_pgdata:/var/lib/postgresql/data
+
+volumes:
+  kalena_notas_pgdata:

@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.next/
+out/
+build/
+
+# env
+.env
+.env.local
+*.env
+
+# google service account credentials — NUNCA versionar
+google-service-account.json
+apps/api/credentials/
+
+# uploads locais (fallback quando o Drive não está configurado)
+apps/api/uploads/
+
+# logs / OS
+*.log
+.DS_Store
+Thumbs.db
+
+# prisma
+apps/api/prisma/*.db

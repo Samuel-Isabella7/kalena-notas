@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CRIADOR
+  ADMIN
+  ADMIN_SERVICO
+  ADMIN_ICMS
+}
+
+enum OmieAccount {
+  SP
+  RJ
+}
+
+enum InvoiceKind {
+  SERVICO
+  ICMS
+}
+
+enum InvoiceStatus {
+  PENDENTE
+  LANCADA
+  ERRO
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(ADMIN)
+  active       Boolean  @default(true)
+  lastLoginAt  DateTime? @map("last_login_at")
+  resetToken    String?   @unique @map("reset_token")
+  resetTokenExp DateTime? @map("reset_token_exp")
+  inviteToken    String?   @unique @map("invite_token")
+  inviteTokenExp DateTime? @map("invite_token_exp")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  uploadedInvoices Invoice[] @relation("UploadedBy")
+  launchedInvoices Invoice[] @relation("LaunchedBy")
+  activityLogs     ActivityLog[]
+
+  @@map("users")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  // Dia ao qual a nota pertence (data em que foi recebida). Guardado como meia-noite UTC.
+  competenceDate DateTime      @map("competence_date") @db.Date
+  account        OmieAccount   @default(SP)
+  kind           InvoiceKind   @default(SERVICO)
+  status         InvoiceStatus @default(PENDENTE)
+
+  // Arquivo
+  fileName String  @map("file_name")
+  mimeType String  @map("mime_type")
+  fileSize Int     @map("file_size")
+  driveFileId String? @map("drive_file_id")
+  driveLink   String? @map("drive_link")
+  localPath   String? @map("local_path")
+
+  // Dados do lançamento (Conta a Pagar) — pré-preenchidos pela leitura do PDF, revisáveis
+  fornecedorNome    String?  @map("fornecedor_nome")
+  fornecedorDoc     String?  @map("fornecedor_doc")
+  numeroDocumento   String?  @map("numero_documento")
+  valor             Decimal? @db.Decimal(14, 2)
+  dataEmissao       DateTime? @map("data_emissao") @db.Date
+  dataVencimento    DateTime? @map("data_vencimento") @db.Date
+  categoriaCodigo       String? @map("categoria_codigo")
+  categoriaDescricao    String? @map("categoria_descricao")
+  contaCorrenteId       String? @map("conta_corrente_id")
+  contaCorrenteDescricao String? @map("conta_corrente_descricao")
+  observacao        String? @db.Text
+
+  // Resultado da leitura do PDF (bruto, para auditoria/diagnóstico)
+  extractedRaw Json? @map("extracted_raw")
+
+  // Resultado do lançamento na Omie
+  omieCodigoLancamento String?   @map("omie_codigo_lancamento")
+  omieIntegrationCode  String?   @map("omie_integration_code")
+  omieErro             String?   @map("omie_erro") @db.Text
+  launchedAt           DateTime? @map("launched_at")
+
+  uploadedById String @map("uploaded_by_id")
+  uploadedBy   User   @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+  launchedById String? @map("launched_by_id")
+  launchedBy   User?   @relation("LaunchedBy", fields: [launchedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([competenceDate])
+  @@index([status])
+  @@map("invoices")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String?
+  entityId  String?  @map("entity_id")
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}

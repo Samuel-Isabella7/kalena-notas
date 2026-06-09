@@ -1,0 +1,56 @@
+# Render Blueprint — backend (API) do Kalena Notas (plano gratuito)
+# Banco de dados: crie no Neon (gratuito) e cole a connection string em DATABASE_URL.
+# O front (Next.js) vai na Vercel (não entra aqui).
+services:
+  - type: web
+    name: kalena-notas-api
+    runtime: node
+    plan: free
+    rootDir: apps/api
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start:prod
+    healthCheckPath: /api/auth/providers
+    envVars:
+      - key: DATABASE_URL          # Neon (postgresql://...)
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "8h"
+      - key: CORS_ORIGIN           # URL do front na Vercel (ex.: https://kalena-notas.vercel.app)
+        sync: false
+      - key: WEB_URL               # mesma URL do front (usada nos links de e-mail)
+        sync: false
+      - key: CRIADOR_NOME
+        sync: false
+      - key: CRIADOR_EMAIL
+        sync: false
+      - key: CRIADOR_SENHA
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON   # obrigatório no plano grátis (arquivos vão p/ o Drive)
+        sync: false
+      - key: GDRIVE_ROOT_FOLDER_ID
+        sync: false
+      - key: OMIE_SP_APP_KEY
+        sync: false
+      - key: OMIE_SP_APP_SECRET
+        sync: false
+      - key: OMIE_RJ_APP_KEY
+        sync: false
+      - key: OMIE_RJ_APP_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+# Observações do plano grátis do Render:
+# - O serviço "hiberna" após ~15 min sem uso; a 1ª chamada depois disso demora ~30-60s (cold start).
+# - O disco é efêmero: NÃO guarde arquivos no servidor — use o Google Drive (já é o padrão em produção).
