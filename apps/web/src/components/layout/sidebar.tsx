@@ -54,7 +54,7 @@ export function Sidebar() {
             );
           })}
       </nav>
-      <div className="p-4 border-t border-slate-800 text-xs text-slate-500">
+      <div className="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
         Kalena Foods © {new Date().getFullYear()}
       </div>
     </aside>

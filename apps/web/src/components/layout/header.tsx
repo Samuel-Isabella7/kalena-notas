@@ -14,7 +14,7 @@ export function Header() {
       <div className="md:hidden text-lg font-bold tracking-wide">KALENA</div>
       <div className="flex-1" />
       <div className="flex items-center gap-3">
-        <div className="text-right">
+        <div className="flex flex-col items-center">
           <div className="text-sm font-medium">{user.name}</div>
           <Badge variant={user.role === 'CRIADOR' ? 'info' : 'secondary'} className="mt-0.5">
             {ROLE_LABELS[user.role] ?? user.role}
