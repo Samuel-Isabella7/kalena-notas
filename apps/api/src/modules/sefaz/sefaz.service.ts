@@ -15,7 +15,6 @@ import { InvoiceKind, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DriveService } from '../storage/drive.service';
 import { allowedKinds } from '../../common/utils/role-scope';
-import { generateDanfe } from './danfe';
 
 interface SefazCompany {
   key: string;
@@ -472,11 +471,5 @@ export class SefazService {
   async getXml(id: string, role: Role) {
     const { note, xml } = await this.fetchNoteXml(id, role);
     return { filename: `${note.chave}.xml`, content: Buffer.from(xml, 'utf8') };
-  }
-
-  async getDanfe(id: string, role: Role) {
-    const { note, xml } = await this.fetchNoteXml(id, role);
-    const pdf = await generateDanfe(xml);
-    return { filename: `DANFE-${note.numero || note.chave}.pdf`, content: pdf };
   }
 }

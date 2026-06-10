@@ -205,7 +205,7 @@ export default function RecebidasPage() {
 
       <p className="text-xs text-muted-foreground">
         A SEFAZ entrega NF-e (mercadoria/ICMS). Notas de serviço (NFS-e) são municipais e não vêm por aqui.
-        Notas "resumo" ainda não têm XML/DANFE — é preciso a manifestação do destinatário para baixar o XML completo.
+        Notas "resumo" ainda não têm o XML — é preciso a manifestação do destinatário para baixar o XML completo.
       </p>
     </div>
   );

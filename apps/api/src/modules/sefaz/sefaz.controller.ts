@@ -45,12 +45,4 @@ export class SefazController {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(content);
   }
-
-  @Get('received/:id/danfe')
-  async danfe(@Param('id') id: string, @CurrentUser() user: AuthUser, @Res() res: Response) {
-    const { filename, content } = await this.sefaz.getDanfe(id, user.role);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    res.send(content);
-  }
 }
