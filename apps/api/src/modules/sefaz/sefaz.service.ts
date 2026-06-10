@@ -1,13 +1,21 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as https from 'https';
 import * as zlib from 'zlib';
 import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
-import { InvoiceKind, Prisma } from '@prisma/client';
+import { InvoiceKind, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DriveService } from '../storage/drive.service';
+import { allowedKinds } from '../../common/utils/role-scope';
+import { generateDanfe } from './danfe';
 
 interface SefazCompany {
   key: string;
@@ -382,5 +390,39 @@ export class SefazService {
       hasXml: r.hasXml,
       capturedAt: r.capturedAt,
     }));
+  }
+
+  /** Empresas configuradas para o filtro do frontend. */
+  empresasFiltro(role: Role) {
+    // (o filtro por tipo não se aplica aqui — todas as recebidas são ICMS)
+    void role;
+    return this.companies().map((c) => ({ cnpj: c.cnpj, nome: c.nome, uf: c.uf }));
+  }
+
+  private async fetchNoteXml(id: string, role: Role) {
+    const note = await this.prisma.receivedNfe.findUnique({ where: { id } });
+    if (!note) throw new NotFoundException('Nota não encontrada.');
+    if (!allowedKinds(role).includes(note.kind)) {
+      throw new ForbiddenException('Você não tem acesso a este tipo de nota.');
+    }
+    if (!note.driveFileId && !note.driveLink) {
+      throw new BadRequestException(
+        'XML indisponível: esta nota veio apenas como resumo. Faça a manifestação para baixar o XML completo.',
+      );
+    }
+    const buf = await this.drive.download(note.driveFileId, null);
+    if (!buf) throw new BadRequestException('Não foi possível obter o XML do arquivo.');
+    return { note, xml: buf.toString('utf8') };
+  }
+
+  async getXml(id: string, role: Role) {
+    const { note, xml } = await this.fetchNoteXml(id, role);
+    return { filename: `${note.chave}.xml`, content: Buffer.from(xml, 'utf8') };
+  }
+
+  async getDanfe(id: string, role: Role) {
+    const { note, xml } = await this.fetchNoteXml(id, role);
+    const pdf = await generateDanfe(xml);
+    return { filename: `DANFE-${note.numero || note.chave}.pdf`, content: pdf };
   }
 }

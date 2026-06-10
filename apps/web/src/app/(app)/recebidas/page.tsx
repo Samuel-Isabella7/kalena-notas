@@ -1,12 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, FileText, ExternalLink, Inbox } from 'lucide-react';
+import { RefreshCw, Loader2, FileText, Inbox, FileDown, FileCode } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
 import { ReceivedNfe } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
 import { formatCurrency, formatDate, formatDocument } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -14,12 +15,24 @@ export default function RecebidasPage() {
   const { can } = useAuth();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
+  const [filtro, setFiltro] = useState<string>('TODAS'); // UF da empresa
   const canSync = can('CRIADOR', 'ADMIN', 'ADMIN_ICMS');
 
   const { data: notas, isLoading } = useQuery<ReceivedNfe[]>({
     queryKey: ['received-nfe'],
     queryFn: async () => (await api.get('/sefaz/received')).data,
   });
+
+  const ufs = useMemo(() => {
+    const set = new Set<string>();
+    (notas ?? []).forEach((n) => n.empresaUf && set.add(n.empresaUf));
+    return Array.from(set).sort();
+  }, [notas]);
+
+  const visiveis = useMemo(() => {
+    if (!notas) return [];
+    return filtro === 'TODAS' ? notas : notas.filter((n) => n.empresaUf === filtro);
+  }, [notas, filtro]);
 
   const sync = async () => {
     setSyncing(true);
@@ -28,11 +41,7 @@ export default function RecebidasPage() {
       const partes = (data?.empresas ?? []).map((e: any) =>
         e.erro ? `${e.empresa}: erro` : `${e.empresa}: ${e.novos} nova(s)`,
       );
-      toast({
-        title: 'Sincronização concluída',
-        description: partes.join(' · ') || 'Sem novidades',
-        variant: 'success',
-      });
+      toast({ title: 'Sincronização concluída', description: partes.join(' · ') || 'Sem novidades', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
     } catch (e) {
       toast({ title: 'Erro ao sincronizar', description: apiError(e), variant: 'destructive' });
@@ -40,6 +49,33 @@ export default function RecebidasPage() {
       setSyncing(false);
     }
   };
+
+  const openDanfe = async (n: ReceivedNfe) => {
+    try {
+      const res = await api.get(`/sefaz/received/${n.id}/danfe`, { responseType: 'blob' });
+      window.open(URL.createObjectURL(res.data), '_blank');
+    } catch (e) {
+      toast({ title: 'Erro ao gerar DANFE', description: apiError(e), variant: 'destructive' });
+    }
+  };
+
+  const downloadXml = async (n: ReceivedNfe) => {
+    try {
+      const res = await api.get(`/sefaz/received/${n.id}/xml`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${n.chave}.xml`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast({ title: 'Erro ao baixar XML', description: apiError(e), variant: 'destructive' });
+    }
+  };
+
+  const filtros = ['TODAS', ...ufs];
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -58,19 +94,40 @@ export default function RecebidasPage() {
         )}
       </div>
 
+      {/* Filtro por empresa */}
+      {ufs.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {filtros.map((f) => (
+            <button
+              key={f}
+              onClick={() => setFiltro(f)}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors',
+                filtro === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-white hover:border-slate-400',
+              )}
+            >
+              {f === 'TODAS' ? 'Todas' : f}
+              <span className="ml-1 text-xs opacity-70">
+                ({f === 'TODAS' ? (notas?.length ?? 0) : (notas ?? []).filter((n) => n.empresaUf === f).length})
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
-      ) : !notas || notas.length === 0 ? (
+      ) : visiveis.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-white p-12 text-center">
           <Inbox className="w-10 h-10 mx-auto text-slate-300" />
           <p className="mt-3 text-sm text-muted-foreground">
-            Nenhuma nota recebida ainda. Clique em <strong>Sincronizar</strong> para buscar na SEFAZ.
+            Nenhuma nota neste filtro. Clique em <strong>Sincronizar</strong> para buscar na SEFAZ.
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-white overflow-hidden">
+        <div className="rounded-lg border bg-white overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs text-muted-foreground">
               <tr>
@@ -79,11 +136,11 @@ export default function RecebidasPage() {
                 <th className="px-4 py-2 font-medium">NF</th>
                 <th className="px-4 py-2 font-medium">Valor</th>
                 <th className="px-4 py-2 font-medium">Empresa</th>
-                <th className="px-4 py-2 font-medium">XML</th>
+                <th className="px-4 py-2 font-medium">Documentos</th>
               </tr>
             </thead>
             <tbody>
-              {notas.map((n) => (
+              {visiveis.map((n) => (
                 <tr key={n.id} className="border-t hover:bg-slate-50/60">
                   <td className="px-4 py-2 whitespace-nowrap">{formatDate(n.dataEmissao)}</td>
                   <td className="px-4 py-2">
@@ -97,18 +154,26 @@ export default function RecebidasPage() {
                   <td className="px-4 py-2 whitespace-nowrap">
                     <Badge variant="outline">{n.empresaUf || n.empresaNome}</Badge>
                   </td>
-                  <td className="px-4 py-2">
-                    {n.hasXml && n.driveLink ? (
-                      <a
-                        href={n.driveLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" /> XML
-                      </a>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {n.hasXml ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openDanfe(n)}
+                          className="inline-flex items-center gap-1 text-red-600 hover:underline"
+                          title="Abrir DANFE em PDF"
+                        >
+                          <FileDown className="w-3.5 h-3.5" /> DANFE
+                        </button>
+                        <button
+                          onClick={() => downloadXml(n)}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                          title="Baixar XML"
+                        >
+                          <FileCode className="w-3.5 h-3.5" /> XML
+                        </button>
+                      </div>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Veio só como resumo (sem XML)">
                         <FileText className="w-3.5 h-3.5" /> resumo
                       </span>
                     )}
@@ -121,8 +186,8 @@ export default function RecebidasPage() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        Observação: a SEFAZ entrega NF-e (mercadoria/ICMS). Notas de serviço (NFS-e) são municipais e não vêm por aqui.
-        Quando a NF-e completa está disponível, o XML é salvo no Drive (pasta "NF-e Recebidas (SEFAZ)").
+        A SEFAZ entrega NF-e (mercadoria/ICMS). Notas de serviço (NFS-e) são municipais e não vêm por aqui.
+        Notas "resumo" ainda não têm XML/DANFE — é preciso a manifestação do destinatário para baixar o XML completo.
       </p>
     </div>
   );

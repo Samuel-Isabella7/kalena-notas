@@ -135,6 +135,25 @@ export class DriveService implements OnModuleInit {
     }
   }
 
+  /** Baixa o conteúdo de um arquivo do Drive (ou do disco local) como Buffer. */
+  async download(driveFileId: string | null, localPath?: string | null): Promise<Buffer | null> {
+    if (driveFileId && this.drive) {
+      try {
+        const res = await this.drive.files.get(
+          { fileId: driveFileId, alt: 'media', supportsAllDrives: true },
+          { responseType: 'arraybuffer' },
+        );
+        return Buffer.from(res.data as ArrayBuffer);
+      } catch (e: any) {
+        this.logger.warn(`Falha ao baixar do Drive (${driveFileId}): ${e.message}`);
+      }
+    }
+    if (localPath && fs.existsSync(localPath)) {
+      return fs.readFileSync(localPath);
+    }
+    return null;
+  }
+
   async delete(file: { driveFileId: string | null; localPath: string | null }): Promise<void> {
     if (file.driveFileId && this.drive) {
       try {
