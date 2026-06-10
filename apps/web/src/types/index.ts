@@ -102,3 +102,21 @@ export interface OmieOption {
   codigo: string;
   descricao: string;
 }
+
+export interface ReceivedNfe {
+  id: string;
+  empresaNome: string | null;
+  empresaCnpj: string;
+  empresaUf: string | null;
+  chave: string;
+  emitenteNome: string | null;
+  emitenteCnpj: string | null;
+  numero: string | null;
+  serie: string | null;
+  valor: number | null;
+  dataEmissao: string | null;
+  kind: InvoiceKind;
+  driveLink: string | null;
+  hasXml: boolean;
+  capturedAt: string;
+}

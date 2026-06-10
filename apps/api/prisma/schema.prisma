@@ -103,6 +103,42 @@ model Invoice {
   @@map("invoices")
 }
 
+// Cursor (NSU) por CNPJ para a captura incremental na SEFAZ (Distribuição de DFe)
+model SefazCursor {
+  cnpj      String   @id
+  ultNsu    String   @default("0") @map("ult_nsu")
+  maxNsu    String?  @map("max_nsu")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sefaz_cursors")
+}
+
+// NF-e capturadas da SEFAZ (emitidas contra a empresa). Não vão para a Omie.
+model ReceivedNfe {
+  id           String       @id @default(cuid())
+  empresaCnpj  String       @map("empresa_cnpj")
+  empresaNome  String?      @map("empresa_nome")
+  empresaUf    String?      @map("empresa_uf")
+  chave        String       @unique
+  nsu          String?
+  emitenteCnpj String?      @map("emitente_cnpj")
+  emitenteNome String?      @map("emitente_nome")
+  numero       String?
+  serie        String?
+  valor        Decimal?     @db.Decimal(14, 2)
+  dataEmissao  DateTime?    @map("data_emissao") @db.Date
+  kind         InvoiceKind  @default(ICMS)
+  driveFileId  String?      @map("drive_file_id")
+  driveLink    String?      @map("drive_link")
+  hasXml       Boolean      @default(false) @map("has_xml")
+  resumoOnly   Boolean      @default(true) @map("resumo_only")
+  capturedAt   DateTime     @default(now()) @map("captured_at")
+
+  @@index([dataEmissao])
+  @@index([empresaCnpj])
+  @@map("received_nfe")
+}
+
 model ActivityLog {
   id        String   @id @default(cuid())
   userId    String?  @map("user_id")

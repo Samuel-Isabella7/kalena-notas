@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, Users, Settings } from 'lucide-react';
+import { CalendarDays, Users, Settings, Inbox } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Role } from '@/types';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,8 @@ interface NavItem {
 }
 
 const items: NavItem[] = [
-  { label: 'Calendário', href: '/calendario', icon: CalendarDays, roles: ['CRIADOR', 'ADMIN'] },
+  { label: 'Calendário', href: '/calendario', icon: CalendarDays, roles: ['CRIADOR', 'ADMIN', 'ADMIN_SERVICO', 'ADMIN_ICMS'] },
+  { label: 'Recebidas (SEFAZ)', href: '/recebidas', icon: Inbox, roles: ['CRIADOR', 'ADMIN', 'ADMIN_ICMS'] },
   { label: 'Membros', href: '/membros', icon: Users, roles: ['CRIADOR'] },
   { label: 'Configurações', href: '/configuracoes', icon: Settings, roles: ['CRIADOR', 'ADMIN'] },
 ];

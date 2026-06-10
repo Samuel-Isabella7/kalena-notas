@@ -87,30 +87,43 @@ export class DriveService implements OnModuleInit {
     return null;
   }
 
-  /** Faz upload do arquivo organizando em subpastas Ano/Mês/Dia. */
+  /** Faz upload do arquivo organizando em subpastas Tipo/Ano/Mês/Dia. */
   async upload(params: UploadParams): Promise<StoredFile> {
     const { buffer, fileName, mimeType, kindLabel, year, month, day } = params;
     const monthFolder = String(month).padStart(2, '0');
     const dayFolder = String(day).padStart(2, '0');
+    return this.uploadToSegments(buffer, fileName, mimeType, [
+      kindLabel,
+      String(year),
+      monthFolder,
+      dayFolder,
+    ]);
+  }
+
+  /** Faz upload para um caminho de subpastas arbitrário (cria as pastas que faltarem). */
+  async uploadToSegments(
+    buffer: Buffer,
+    fileName: string,
+    mimeType: string,
+    segments: string[],
+  ): Promise<StoredFile> {
     const safeName = `${crypto.randomUUID().slice(0, 8)}_${this.sanitize(fileName)}`;
 
     if (!this.drive) {
-      return this.saveLocal(buffer, safeName, [kindLabel, String(year), monthFolder, dayFolder]);
+      return this.saveLocal(buffer, safeName, segments);
     }
 
     try {
-      const kindId = await this.ensureFolder(kindLabel, this.rootFolderId);
-      const yearId = await this.ensureFolder(String(year), kindId);
-      const monthId = await this.ensureFolder(monthFolder, yearId);
-      const dayId = await this.ensureFolder(dayFolder, monthId);
-
+      let parent = this.rootFolderId;
+      for (const seg of segments) {
+        parent = await this.ensureFolder(seg, parent);
+      }
       const res = await this.drive.files.create({
-        requestBody: { name: safeName, parents: [dayId] },
+        requestBody: { name: safeName, parents: [parent] },
         media: { mimeType, body: Readable.from(buffer) },
         fields: 'id, webViewLink',
         supportsAllDrives: true,
       });
-
       return {
         driveFileId: res.data.id ?? null,
         driveLink: res.data.webViewLink ?? null,
@@ -118,7 +131,7 @@ export class DriveService implements OnModuleInit {
       };
     } catch (e: any) {
       this.logger.error(`Falha no upload para o Drive: ${e.message}. Salvando localmente.`);
-      return this.saveLocal(buffer, safeName, [String(year), monthFolder, dayFolder]);
+      return this.saveLocal(buffer, safeName, segments);
     }
   }
 
