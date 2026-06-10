@@ -121,6 +121,7 @@ model ReceivedNfe {
   empresaUf    String?      @map("empresa_uf")
   chave        String       @unique
   nsu          String?
+  tipoDoc      String       @default("NFE") @map("tipo_doc") // NFE | CTE
   emitenteCnpj String?      @map("emitente_cnpj")
   emitenteNome String?      @map("emitente_nome")
   numero       String?

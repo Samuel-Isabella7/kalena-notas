@@ -181,8 +181,8 @@ export class SefazService {
     }
   }
 
-  /** Sincroniza todas as empresas configuradas. */
-  async sync() {
+  /** Sincroniza todas as empresas configuradas. reset=true reprocessa do NSU 0. */
+  async sync(reset = false) {
     const companies = this.companies();
     if (companies.length === 0) {
       throw new BadRequestException(
@@ -193,6 +193,13 @@ export class SefazService {
     const resumo: any[] = [];
     for (const company of companies) {
       try {
+        if (reset) {
+          await this.prisma.sefazCursor.upsert({
+            where: { cnpj: company.cnpj },
+            update: { ultNsu: '0' },
+            create: { cnpj: company.cnpj, ultNsu: '0' },
+          });
+        }
         const r = await this.syncCompany(company);
         resumo.push({ empresa: company.nome, ...r });
       } catch (e: any) {
@@ -240,7 +247,80 @@ export class SefazService {
     return { novos, ultNSU: ultNsu, maxNSU };
   }
 
-  /** Persiste um documento (resumo ou NF-e completa). Retorna true se criou. */
+  /** Extrai os dados de um documento (NF-e, NFC-e ou CT-e), resumo ou completo. */
+  private extractDoc(parsed: any): {
+    tipoDoc: 'NFE' | 'NFCE' | 'CTE';
+    full: boolean;
+    chave: string;
+    emitenteCnpj?: string;
+    emitenteNome?: string;
+    numero?: string;
+    serie?: string;
+    valor?: number;
+    dataEmissao?: string;
+  } | null {
+    // ----- NF-e / NFC-e -----
+    if (parsed?.resNFe) {
+      const r = parsed.resNFe;
+      return {
+        tipoDoc: 'NFE',
+        full: false,
+        chave: String(r.chNFe || ''),
+        emitenteCnpj: r.CNPJ ? String(r.CNPJ) : undefined,
+        emitenteNome: r.xNome ? String(r.xNome) : undefined,
+        valor: r.vNF ? Number(r.vNF) : undefined,
+        dataEmissao: this.isoDate(r.dhEmi),
+      };
+    }
+    const infNFe = parsed?.nfeProc?.NFe?.infNFe || parsed?.NFe?.infNFe;
+    if (infNFe) {
+      const mod = String(infNFe.ide?.mod || '55');
+      return {
+        tipoDoc: mod === '65' ? 'NFCE' : 'NFE',
+        full: true,
+        chave: String(infNFe['@_Id'] || '').replace(/\D/g, ''),
+        emitenteCnpj: infNFe.emit?.CNPJ ? String(infNFe.emit.CNPJ) : undefined,
+        emitenteNome: infNFe.emit?.xNome ? String(infNFe.emit.xNome) : undefined,
+        numero: infNFe.ide?.nNF ? String(infNFe.ide.nNF) : undefined,
+        serie: infNFe.ide?.serie ? String(infNFe.ide.serie) : undefined,
+        valor: infNFe.total?.ICMSTot?.vNF ? Number(infNFe.total.ICMSTot.vNF) : undefined,
+        dataEmissao: this.isoDate(infNFe.ide?.dhEmi || infNFe.ide?.dEmi),
+      };
+    }
+    // ----- CT-e (fretes/carretos) -----
+    if (parsed?.resCTe) {
+      const r = parsed.resCTe;
+      return {
+        tipoDoc: 'CTE',
+        full: false,
+        chave: String(r.chCTe || ''),
+        emitenteCnpj: r.CNPJ ? String(r.CNPJ) : undefined,
+        emitenteNome: r.xNome ? String(r.xNome) : undefined,
+        valor: r.vTPrest ? Number(r.vTPrest) : undefined,
+        dataEmissao: this.isoDate(r.dhEmi),
+      };
+    }
+    const infCte =
+      parsed?.cteProc?.CTe?.infCte ||
+      parsed?.procCTe?.CTe?.infCte ||
+      parsed?.CTe?.infCte;
+    if (infCte) {
+      return {
+        tipoDoc: 'CTE',
+        full: true,
+        chave: String(infCte['@_Id'] || '').replace(/\D/g, ''),
+        emitenteCnpj: infCte.emit?.CNPJ ? String(infCte.emit.CNPJ) : undefined,
+        emitenteNome: infCte.emit?.xNome ? String(infCte.emit.xNome) : undefined,
+        numero: infCte.ide?.nCT ? String(infCte.ide.nCT) : undefined,
+        serie: infCte.ide?.serie ? String(infCte.ide.serie) : undefined,
+        valor: infCte.vPrest?.vTPrest ? Number(infCte.vPrest.vTPrest) : undefined,
+        dataEmissao: this.isoDate(infCte.ide?.dhEmi),
+      };
+    }
+    return null;
+  }
+
+  /** Persiste um documento (NF-e/NFC-e/CT-e, resumo ou completo). Retorna true se criou. */
   private async persistDoc(
     company: SefazCompany,
     doc: { nsu: string; schema: string; xml: string },
@@ -248,52 +328,19 @@ export class SefazService {
     if (!doc.xml) return false;
     const schema = (doc.schema || '').toLowerCase();
 
-    // Ignoramos eventos por enquanto (só NF-e e resumos de NF-e)
+    // Eventos (cancelamento, ciência, carta de correção) não são documentos — pulamos
     if (schema.includes('evento')) return false;
 
     const parsed = this.parser.parse(doc.xml);
-    let info: {
-      chave: string;
-      emitenteCnpj?: string;
-      emitenteNome?: string;
-      numero?: string;
-      serie?: string;
-      valor?: number;
-      dataEmissao?: string; // YYYY-MM-DD
-    } | null = null;
-    let full = false;
-
-    if (parsed?.resNFe) {
-      const r = parsed.resNFe;
-      info = {
-        chave: String(r.chNFe || ''),
-        emitenteCnpj: r.CNPJ ? String(r.CNPJ) : undefined,
-        emitenteNome: r.xNome ? String(r.xNome) : undefined,
-        valor: r.vNF ? Number(r.vNF) : undefined,
-        dataEmissao: this.isoDate(r.dhEmi),
-      };
-    } else if (parsed?.nfeProc?.NFe?.infNFe) {
-      const inf = parsed.nfeProc.NFe.infNFe;
-      const id = String(inf['@_Id'] || '').replace(/\D/g, '');
-      info = {
-        chave: id,
-        emitenteCnpj: inf.emit?.CNPJ ? String(inf.emit.CNPJ) : undefined,
-        emitenteNome: inf.emit?.xNome ? String(inf.emit.xNome) : undefined,
-        numero: inf.ide?.nNF ? String(inf.ide.nNF) : undefined,
-        serie: inf.ide?.serie ? String(inf.ide.serie) : undefined,
-        valor: inf.total?.ICMSTot?.vNF ? Number(inf.total.ICMSTot.vNF) : undefined,
-        dataEmissao: this.isoDate(inf.ide?.dhEmi || inf.ide?.dEmi),
-      };
-      full = true;
-    }
-
+    const info = this.extractDoc(parsed);
     if (!info || !info.chave) return false;
+    const full = info.full;
 
     const existing = await this.prisma.receivedNfe.findUnique({ where: { chave: info.chave } });
     if (existing) {
-      // Se já existe como resumo e agora veio completa, atualiza com o XML
+      // Se já existe como resumo e agora veio completo, atualiza com o XML
       if (full && existing.resumoOnly) {
-        const stored = await this.storeXml(company, info.chave, info.dataEmissao, doc.xml);
+        const stored = await this.storeXml(info.tipoDoc, info.chave, info.dataEmissao, doc.xml);
         await this.prisma.receivedNfe.update({
           where: { chave: info.chave },
           data: {
@@ -313,7 +360,7 @@ export class SefazService {
     let driveFileId: string | null = null;
     let driveLink: string | null = null;
     if (full) {
-      const stored = await this.storeXml(company, info.chave, info.dataEmissao, doc.xml);
+      const stored = await this.storeXml(info.tipoDoc, info.chave, info.dataEmissao, doc.xml);
       driveFileId = stored.driveFileId;
       driveLink = stored.driveLink;
     }
@@ -325,6 +372,7 @@ export class SefazService {
         empresaUf: company.uf,
         chave: info.chave,
         nsu: doc.nsu,
+        tipoDoc: info.tipoDoc,
         emitenteCnpj: info.emitenteCnpj,
         emitenteNome: info.emitenteNome,
         numero: info.numero,
@@ -342,17 +390,18 @@ export class SefazService {
   }
 
   private async storeXml(
-    company: SefazCompany,
+    tipoDoc: string,
     chave: string,
     dataEmissao: string | undefined,
     xml: string,
   ) {
     const [year, month] = (dataEmissao || '0000-00').split('-');
+    const pasta = tipoDoc === 'CTE' ? 'CT-e' : tipoDoc === 'NFCE' ? 'NFC-e' : 'NF-e';
     return this.drive.uploadToSegments(
       Buffer.from(xml, 'utf8'),
       `${chave}.xml`,
       'application/xml',
-      ['NF-e Recebidas (SEFAZ)', 'ICMS', year || 'sem-data', month || '00'],
+      ['Recebidas SEFAZ', pasta, year || 'sem-data', month || '00'],
     );
   }
 
@@ -379,6 +428,7 @@ export class SefazService {
       empresaCnpj: r.empresaCnpj,
       empresaUf: r.empresaUf,
       chave: r.chave,
+      tipoDoc: r.tipoDoc,
       emitenteNome: r.emitenteNome,
       emitenteCnpj: r.emitenteCnpj,
       numero: r.numero,

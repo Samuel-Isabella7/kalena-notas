@@ -21,8 +21,8 @@ export class SefazController {
 
   @Post('sync')
   @Roles(Role.CRIADOR, Role.ADMIN, Role.ADMIN_ICMS)
-  sync() {
-    return this.sefaz.sync();
+  sync(@Query('reset') reset?: string) {
+    return this.sefaz.sync(reset === 'true' || reset === '1');
   }
 
   @Get('empresas')

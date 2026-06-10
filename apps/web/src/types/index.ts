@@ -109,6 +109,7 @@ export interface ReceivedNfe {
   empresaCnpj: string;
   empresaUf: string | null;
   chave: string;
+  tipoDoc: 'NFE' | 'NFCE' | 'CTE' | string;
   emitenteNome: string | null;
   emitenteCnpj: string | null;
   numero: string | null;

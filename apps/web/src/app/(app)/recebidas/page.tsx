@@ -16,7 +16,10 @@ export default function RecebidasPage() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [filtro, setFiltro] = useState<string>('TODAS'); // UF da empresa
+  const [tipoF, setTipoF] = useState<string>('TODOS'); // tipo de documento
   const canSync = can('CRIADOR', 'ADMIN', 'ADMIN_ICMS');
+
+  const tipoLabel = (t: string) => (t === 'CTE' ? 'CT-e' : t === 'NFCE' ? 'NFC-e' : 'NF-e');
 
   const { data: notas, isLoading } = useQuery<ReceivedNfe[]>({
     queryKey: ['received-nfe'],
@@ -29,10 +32,18 @@ export default function RecebidasPage() {
     return Array.from(set).sort();
   }, [notas]);
 
+  const tipos = useMemo(() => {
+    const set = new Set<string>();
+    (notas ?? []).forEach((n) => n.tipoDoc && set.add(n.tipoDoc));
+    return Array.from(set).sort();
+  }, [notas]);
+
   const visiveis = useMemo(() => {
     if (!notas) return [];
-    return filtro === 'TODAS' ? notas : notas.filter((n) => n.empresaUf === filtro);
-  }, [notas, filtro]);
+    return notas.filter(
+      (n) => (filtro === 'TODAS' || n.empresaUf === filtro) && (tipoF === 'TODOS' || n.tipoDoc === tipoF),
+    );
+  }, [notas, filtro, tipoF]);
 
   const sync = async () => {
     setSyncing(true);
@@ -106,6 +117,27 @@ export default function RecebidasPage() {
         </div>
       )}
 
+      {/* Filtro por tipo de documento */}
+      {tipos.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {['TODOS', ...tipos].map((t) => (
+            <button
+              key={t}
+              onClick={() => setTipoF(t)}
+              className={cn(
+                'px-3 py-1 rounded-md text-xs font-medium border transition-colors',
+                tipoF === t ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white hover:border-slate-400',
+              )}
+            >
+              {t === 'TODOS' ? 'Todos os tipos' : tipoLabel(t)}
+              <span className="ml-1 opacity-70">
+                ({t === 'TODOS' ? (notas?.length ?? 0) : (notas ?? []).filter((n) => n.tipoDoc === t).length})
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -123,8 +155,9 @@ export default function RecebidasPage() {
             <thead className="bg-slate-50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Emissão</th>
+                <th className="px-4 py-2 font-medium">Tipo</th>
                 <th className="px-4 py-2 font-medium">Emitente</th>
-                <th className="px-4 py-2 font-medium">NF</th>
+                <th className="px-4 py-2 font-medium">Nº</th>
                 <th className="px-4 py-2 font-medium">Valor</th>
                 <th className="px-4 py-2 font-medium">Empresa</th>
                 <th className="px-4 py-2 font-medium">Documentos</th>
@@ -134,6 +167,9 @@ export default function RecebidasPage() {
               {visiveis.map((n) => (
                 <tr key={n.id} className="border-t hover:bg-slate-50/60">
                   <td className="px-4 py-2 whitespace-nowrap">{formatDate(n.dataEmissao)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <Badge variant={n.tipoDoc === 'CTE' ? 'warning' : 'info'}>{tipoLabel(n.tipoDoc)}</Badge>
+                  </td>
                   <td className="px-4 py-2">
                     <div className="font-medium">{n.emitenteNome || '-'}</div>
                     <div className="text-xs text-muted-foreground">{formatDocument(n.emitenteCnpj)}</div>
