@@ -169,6 +169,47 @@ export class AuthService {
     return { ok: true };
   }
 
+  /** O próprio usuário altera nome, e-mail e/ou senha. */
+  async updateMe(
+    userId: string,
+    dto: { name?: string; email?: string; currentPassword?: string; newPassword?: string },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+
+    const novoEmail = dto.email ? dto.email.toLowerCase() : undefined;
+    const trocaEmail = !!novoEmail && novoEmail !== user.email;
+    const trocaSenha = !!dto.newPassword;
+
+    // Para trocar e-mail ou senha, exige a senha atual
+    if (trocaEmail || trocaSenha) {
+      if (!dto.currentPassword) {
+        throw new BadRequestException('Informe sua senha atual para confirmar a alteração.');
+      }
+      const ok = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+      if (!ok) throw new BadRequestException('Senha atual incorreta.');
+    }
+
+    const data: any = {};
+    if (dto.name && dto.name !== user.name) data.name = dto.name;
+    if (trocaEmail) {
+      const exists = await this.prisma.user.findUnique({ where: { email: novoEmail } });
+      if (exists) throw new BadRequestException('Já existe um usuário com este e-mail.');
+      data.email = novoEmail;
+    }
+    if (trocaSenha) data.passwordHash = await bcrypt.hash(dto.newPassword!, 10);
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { id: true, name: true, email: true, role: true },
+    });
+    await this.prisma.activityLog.create({
+      data: { userId, action: 'ACCOUNT_UPDATE' },
+    });
+    return updated;
+  }
+
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

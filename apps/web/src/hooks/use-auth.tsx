@@ -11,6 +11,7 @@ interface AuthContextValue {
   loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   can: (...roles: Role[]) => boolean;
+  updateUser: (partial: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -83,8 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
+  const updateUser = useCallback((partial: Partial<AuthUser>) => {
+    setUser((prev) => {
+      const next = { ...(prev as AuthUser), ...partial };
+      localStorage.setItem('knf_user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, can }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, can, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
