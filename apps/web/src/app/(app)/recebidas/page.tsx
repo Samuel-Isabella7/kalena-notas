@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, FileText, Inbox, FileDown, FileCode } from 'lucide-react';
+import { RefreshCw, Loader2, FileText, Inbox, FileCode } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
 import { ReceivedNfe } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
@@ -47,15 +47,6 @@ export default function RecebidasPage() {
       toast({ title: 'Erro ao sincronizar', description: apiError(e), variant: 'destructive' });
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const openDanfe = async (n: ReceivedNfe) => {
-    try {
-      const res = await api.get(`/sefaz/received/${n.id}/danfe`, { responseType: 'blob' });
-      window.open(URL.createObjectURL(res.data), '_blank');
-    } catch (e) {
-      toast({ title: 'Erro ao gerar DANFE', description: apiError(e), variant: 'destructive' });
     }
   };
 
@@ -156,22 +147,13 @@ export default function RecebidasPage() {
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {n.hasXml ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => openDanfe(n)}
-                          className="inline-flex items-center gap-1 text-red-600 hover:underline"
-                          title="Abrir DANFE em PDF"
-                        >
-                          <FileDown className="w-3.5 h-3.5" /> DANFE
-                        </button>
-                        <button
-                          onClick={() => downloadXml(n)}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                          title="Baixar XML"
-                        >
-                          <FileCode className="w-3.5 h-3.5" /> XML
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => downloadXml(n)}
+                        className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                        title="Baixar XML"
+                      >
+                        <FileCode className="w-3.5 h-3.5" /> XML
+                      </button>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Veio só como resumo (sem XML)">
                         <FileText className="w-3.5 h-3.5" /> resumo
