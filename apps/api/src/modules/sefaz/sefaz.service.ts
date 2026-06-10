@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as https from 'https';
 import * as zlib from 'zlib';
+import * as fs from 'fs';
 import { XMLParser } from 'fast-xml-parser';
 import { InvoiceKind, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -66,7 +67,14 @@ export class SefazService {
     const out: SefazCompany[] = [];
     for (const key of keys) {
       const cnpj = (this.config.get<string>(`SEFAZ_${key}_CNPJ`, '') || '').replace(/\D/g, '');
-      const base64 = (this.config.get<string>(`SEFAZ_${key}_CERT_BASE64`, '') || '').trim();
+      let base64 = (this.config.get<string>(`SEFAZ_${key}_CERT_BASE64`, '') || '').trim();
+      // Alternativa: caminho de um Secret File contendo o base64 do .pfx
+      if (!base64) {
+        const file = (this.config.get<string>(`SEFAZ_${key}_CERT_FILE`, '') || '').trim();
+        if (file && fs.existsSync(file)) {
+          base64 = fs.readFileSync(file, 'utf8').replace(/\s+/g, '');
+        }
+      }
       const senha = this.config.get<string>(`SEFAZ_${key}_SENHA`, '') || '';
       const uf = (this.config.get<string>(`SEFAZ_${key}_UF`, key) || key).toUpperCase();
       const nome = this.config.get<string>(`SEFAZ_${key}_NOME`, key) || key;
