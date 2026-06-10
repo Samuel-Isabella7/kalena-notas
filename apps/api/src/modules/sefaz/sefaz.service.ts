@@ -215,11 +215,15 @@ export class SefazService {
     let ultNsu = cursor?.ultNsu || '0';
     let novos = 0;
     let maxNSU = ultNsu;
+    let cStat = '';
+    let xMotivo = '';
 
     // A SEFAZ entrega ~50 docs por chamada; repetimos até zerar (com teto de segurança).
     for (let i = 0; i < 50; i++) {
       const r = await this.callDistribuicao(company, ultNsu);
       maxNSU = r.maxNSU;
+      cStat = r.cStat;
+      xMotivo = r.xMotivo;
 
       // 137 = nenhum documento; 138 = documentos localizados
       if (r.cStat !== '138' && r.docs.length === 0) {
@@ -244,7 +248,7 @@ export class SefazService {
       await new Promise((res) => setTimeout(res, 600));
     }
 
-    return { novos, ultNSU: ultNsu, maxNSU };
+    return { novos, ultNSU: ultNsu, maxNSU, cStat, xMotivo };
   }
 
   /** Extrai os dados de um documento (NF-e, NFC-e ou CT-e), resumo ou completo. */
