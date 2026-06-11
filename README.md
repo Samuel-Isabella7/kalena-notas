@@ -16,14 +16,15 @@ Cada nota é classificada como **Serviço** ou **ICMS**. Esse tipo define quem e
 
 | Papel                    | Pode fazer                                                                       |
 |--------------------------|----------------------------------------------------------------------------------|
-| **Criador**              | Tudo: convidar/excluir membros, **anexar**, editar, excluir e **lançar na Omie** |
-| **Administrador**        | Visualizar, **anexar e editar** notas de **Serviço e ICMS** (não lança, não exclui) |
+| **Criador**              | Tudo: **convidar/excluir membros** + anexar, editar, lançar na Omie e excluir    |
+| **Administrador**        | **Anexar, editar, lançar na Omie e excluir** notas (Serviço e ICMS) — não gerencia membros |
 | **Administrador Serviço**| **Somente visualizar** notas de **Serviço**                                       |
 | **Administrador ICMS**   | **Somente visualizar** notas de **ICMS**                                          |
 
-> O **lançamento na Omie** e a **exclusão** são exclusivos do **criador**. **Criador e Administrador
-> anexam/editam**; **Administrador Serviço/ICMS** são somente leitura. O filtro por tipo é aplicado
-> **no backend** — um administrador de ICMS não recebe nenhuma nota de serviço.
+> **Criador e Administrador** têm os mesmos poderes sobre as notas (anexar/editar/lançar/excluir);
+> a única diferença é que **apenas o criador gerencia membros**. **Administrador Serviço/ICMS** são
+> somente leitura. O filtro por tipo é aplicado **no backend** — um administrador de ICMS não recebe
+> nenhuma nota de serviço.
 
 ### Convite de membros
 O criador convida pelo **e-mail** (e escolhe o perfil). A pessoa recebe um **link** para criar o

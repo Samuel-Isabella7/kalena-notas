@@ -66,8 +66,8 @@ export default function DiaPage() {
   const params = useParams();
   const date = String(params.data);
   const { can } = useAuth();
-  const isCriador = can('CRIADOR');
-  const canAttach = can('CRIADOR', 'ADMIN'); // criador e admin anexam/editam
+  const canManage = can('CRIADOR', 'ADMIN'); // criador e admin: anexar, editar, lançar, excluir
+  const canAttach = canManage;
   const canSeeBoth = can('CRIADOR', 'ADMIN'); // criador e admin completo veem os dois tipos
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -274,7 +274,7 @@ export default function DiaPage() {
                   {canAttach && inv.status !== 'LANCADA' ? <Pencil className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   {canAttach && inv.status !== 'LANCADA' ? 'Revisar' : 'Ver'}
                 </Button>
-                {isCriador && inv.status !== 'LANCADA' && (
+                {canManage && inv.status !== 'LANCADA' && (
                   <Button variant="ghost" size="sm" onClick={() => remove(inv)} title="Excluir">
                     <Trash2 className="w-4 h-4 text-red-600" />
                   </Button>
@@ -290,7 +290,7 @@ export default function DiaPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onChanged={refetch}
-        canLaunch={isCriador}
+        canLaunch={canManage}
         canEdit={canAttach}
       />
     </div>

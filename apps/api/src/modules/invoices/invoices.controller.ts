@@ -90,13 +90,13 @@ export class InvoicesController {
   }
 
   @Delete(':id')
-  @Roles(Role.CRIADOR)
+  @Roles(Role.CRIADOR, Role.ADMIN)
   remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.invoices.remove(id, user.id);
   }
 
   @Post(':id/launch')
-  @Roles(Role.CRIADOR)
+  @Roles(Role.CRIADOR, Role.ADMIN)
   launch(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     return this.invoices.launch(id, user.id);
   }
