@@ -36,7 +36,7 @@ export class InvoicesController {
   ) {}
 
   @Post()
-  @Roles(Role.CRIADOR) // somente o criador anexa; todos os administradores são leitura
+  @Roles(Role.CRIADOR, Role.ADMIN) // criador e admin anexam; admin serviço/icms são leitura
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -84,7 +84,7 @@ export class InvoicesController {
   }
 
   @Patch(':id')
-  @Roles(Role.CRIADOR)
+  @Roles(Role.CRIADOR, Role.ADMIN)
   update(@Param('id') id: string, @Body() dto: UpdateInvoiceDto, @CurrentUser() user: AuthUser) {
     return this.invoices.update(id, dto, user.id);
   }

@@ -13,7 +13,7 @@ export function allowedKinds(role: Role): InvoiceKind[] {
   }
 }
 
-/** Apenas o criador pode anexar/editar/lançar notas. Todos os administradores são somente leitura. */
+/** Criador e Administrador podem anexar/editar notas. Admin Serviço/ICMS são somente leitura. */
 export function canWrite(role: Role): boolean {
-  return role === Role.CRIADOR;
+  return role === Role.CRIADOR || role === Role.ADMIN;
 }

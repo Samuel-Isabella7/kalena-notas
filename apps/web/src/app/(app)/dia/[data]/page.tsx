@@ -67,7 +67,7 @@ export default function DiaPage() {
   const date = String(params.data);
   const { can } = useAuth();
   const isCriador = can('CRIADOR');
-  const canAttach = can('CRIADOR'); // somente o criador anexa/edita
+  const canAttach = can('CRIADOR', 'ADMIN'); // criador e admin anexam/editam
   const canSeeBoth = can('CRIADOR', 'ADMIN'); // criador e admin completo veem os dois tipos
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
