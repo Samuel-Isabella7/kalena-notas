@@ -88,6 +88,16 @@ export class SefazService {
     private danfe: DanfeService,
   ) {}
 
+  // Estado do job de sincronização (em memória — instância única no Render).
+  // O backlog inicial pode ter milhares de docs (ex.: ~15 mil CT-e em SP), o que não
+  // cabe numa requisição HTTP; o sync roda em background e o front acompanha via polling.
+  private syncJob: {
+    running: boolean;
+    startedAt: string | null;
+    finishedAt: string | null;
+    resumo: any[];
+  } = { running: false, startedAt: null, finishedAt: null, resumo: [] };
+
   private tpAmb(): string {
     return this.config.get<string>('SEFAZ_AMBIENTE', '1') === '2' ? '2' : '1';
   }
@@ -258,8 +268,10 @@ export class SefazService {
     }
   }
 
-  /** Sincroniza todas as empresas configuradas. reset=true reprocessa do NSU 0. */
-  async sync(reset = false) {
+  /** Dispara a sincronização em background (idempotente: se já roda, retorna o progresso). */
+  sync(reset = false) {
+    if (this.syncJob.running) return this.progress();
+
     const companies = this.companies();
     if (companies.length === 0) {
       throw new BadRequestException(
@@ -267,40 +279,93 @@ export class SefazService {
       );
     }
 
-    const resumo: any[] = [];
-    for (const company of companies) {
-      const item: any = { empresa: company.nome };
-
-      // NF-e
-      try {
-        if (reset) {
-          await this.prisma.sefazCursor.upsert({
-            where: { cnpj: company.cnpj },
-            update: { ultNsu: '0', ultNsuCte: '0' },
-            create: { cnpj: company.cnpj, ultNsu: '0', ultNsuCte: '0' },
-          });
-        }
-        Object.assign(item, await this.syncCompany(company));
-      } catch (e: any) {
-        this.logger.error(`Sync NF-e ${company.nome}: ${e.message}`);
-        item.erro = e.message;
-      }
-
-      // CT-e (serviço separado; falha aqui não derruba o resultado de NF-e)
-      try {
-        const cte = await this.syncCompanyCte(company);
-        item.novosCte = cte.novos;
-      } catch (e: any) {
-        this.logger.error(`Sync CT-e ${company.nome}: ${e.message}`);
-        item.cteErro = e.message;
-      }
-
-      resumo.push(item);
-    }
-    return { empresas: resumo };
+    this.syncJob = {
+      running: true,
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      resumo: [],
+    };
+    // fire-and-forget — o progresso é acompanhado via GET /sefaz/sync/progress
+    void this.runSync(companies, reset);
+    return this.progress();
   }
 
-  private async syncCompany(company: SefazCompany) {
+  /** Snapshot do progresso da sincronização (parcial enquanto roda). */
+  progress() {
+    return {
+      running: this.syncJob.running,
+      startedAt: this.syncJob.startedAt,
+      finishedAt: this.syncJob.finishedAt,
+      empresas: this.syncJob.resumo,
+    };
+  }
+
+  private async runSync(companies: SefazCompany[], reset: boolean) {
+    try {
+      for (const company of companies) {
+        const item: any = { empresa: company.nome, novos: 0, novosCte: 0 };
+        this.syncJob.resumo.push(item);
+
+        // NF-e
+        try {
+          if (reset) {
+            await this.prisma.sefazCursor.upsert({
+              where: { cnpj: company.cnpj },
+              update: { ultNsu: '0', ultNsuCte: '0' },
+              create: { cnpj: company.cnpj, ultNsu: '0', ultNsuCte: '0' },
+            });
+          }
+          Object.assign(item, await this.syncCompany(company, item));
+        } catch (e: any) {
+          this.logger.error(`Sync NF-e ${company.nome}: ${e.message}`);
+          item.erro = e.message;
+        }
+
+        // CT-e (serviço separado; falha aqui não derruba o resultado de NF-e)
+        try {
+          const cte = await this.syncCompanyCte(company, item);
+          item.novosCte = cte.novos;
+        } catch (e: any) {
+          this.logger.error(`Sync CT-e ${company.nome}: ${e.message}`);
+          item.cteErro = e.message;
+        }
+      }
+    } catch (e: any) {
+      this.logger.error(`Sync geral: ${e.message}`);
+    } finally {
+      this.syncJob.running = false;
+      this.syncJob.finishedAt = new Date().toISOString();
+    }
+  }
+
+  /**
+   * Persiste um lote de documentos com uploads ao Drive em paralelo (chunks) e
+   * tolerância a falha por documento — um erro não derruba a sincronização.
+   */
+  private async persistBatch(
+    company: SefazCompany,
+    docs: Array<{ nsu: string; schema: string; xml: string }>,
+  ): Promise<number> {
+    let novos = 0;
+    const CHUNK = 8;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const slice = docs.slice(i, i + CHUNK);
+      const results = await Promise.all(
+        slice.map(async (doc) => {
+          try {
+            return await this.persistDoc(company, doc);
+          } catch (e: any) {
+            this.logger.warn(`persistDoc NSU ${doc.nsu} (${company.nome}): ${e.message}`);
+            return false;
+          }
+        }),
+      );
+      novos += results.filter(Boolean).length;
+    }
+    return novos;
+  }
+
+  private async syncCompany(company: SefazCompany, item?: any) {
     const cursor = await this.prisma.sefazCursor.findUnique({ where: { cnpj: company.cnpj } });
     let ultNsu = cursor?.ultNsu || '0';
     let novos = 0;
@@ -309,7 +374,7 @@ export class SefazService {
     let xMotivo = '';
 
     // A SEFAZ entrega ~50 docs por chamada; repetimos até zerar (com teto de segurança).
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 200; i++) {
       const r = await this.callDistribuicao(company, ultNsu);
       maxNSU = r.maxNSU;
       cStat = r.cStat;
@@ -321,10 +386,8 @@ export class SefazService {
         break;
       }
 
-      for (const doc of r.docs) {
-        const created = await this.persistDoc(company, doc);
-        if (created) novos++;
-      }
+      novos += await this.persistBatch(company, r.docs);
+      if (item) item.novos = novos;
       ultNsu = r.ultNSU;
 
       await this.prisma.sefazCursor.upsert({
@@ -335,20 +398,21 @@ export class SefazService {
 
       // chegou ao fim
       if (Number(ultNsu) >= Number(maxNSU) || r.docs.length === 0) break;
-      await new Promise((res) => setTimeout(res, 600));
+      await new Promise((res) => setTimeout(res, 400));
     }
 
     return { novos, ultNSU: ultNsu, maxNSU, cStat, xMotivo };
   }
 
   /** Varre a distribuição de CT-e da empresa (NSU próprio, separado do de NF-e). */
-  private async syncCompanyCte(company: SefazCompany) {
+  private async syncCompanyCte(company: SefazCompany, item?: any) {
     const cursor = await this.prisma.sefazCursor.findUnique({ where: { cnpj: company.cnpj } });
     let ultNsu = cursor?.ultNsuCte || '0';
     let novos = 0;
     let maxNSU = ultNsu;
 
-    for (let i = 0; i < 50; i++) {
+    // Teto alto: o backlog inicial de CT-e pode ter milhares de docs (ex.: SP ≈ 15 mil).
+    for (let i = 0; i < 500; i++) {
       const r = await this.callDistribuicaoCte(company, ultNsu);
       maxNSU = r.maxNSU;
 
@@ -358,10 +422,8 @@ export class SefazService {
         break;
       }
 
-      for (const doc of r.docs) {
-        const created = await this.persistDoc(company, doc);
-        if (created) novos++;
-      }
+      novos += await this.persistBatch(company, r.docs);
+      if (item) item.novosCte = novos;
       ultNsu = r.ultNSU;
 
       await this.prisma.sefazCursor.upsert({
@@ -371,7 +433,7 @@ export class SefazService {
       });
 
       if (Number(ultNsu) >= Number(maxNSU) || r.docs.length === 0) break;
-      await new Promise((res) => setTimeout(res, 600));
+      await new Promise((res) => setTimeout(res, 400));
     }
 
     return { novos, ultNSU: ultNsu, maxNSU };

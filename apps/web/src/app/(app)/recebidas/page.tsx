@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
@@ -27,9 +27,15 @@ function monthLabel(ym: string): string {
   return `${MONTH_NAMES[Number(m) - 1]}/${y}`;
 }
 
+interface SyncProgress {
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  empresas: Array<{ empresa: string; novos?: number; novosCte?: number; erro?: string; cteErro?: string }>;
+}
+
 export default function RecebidasPage() {
   const queryClient = useQueryClient();
-  const [syncing, setSyncing] = useState(false);
   const [manifesting, setManifesting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>('TODAS'); // UF da empresa
@@ -43,6 +49,40 @@ export default function RecebidasPage() {
     queryKey: ['received-nfe'],
     queryFn: async () => (await api.get('/sefaz/received')).data,
   });
+
+  // Progresso da sincronização (roda em background no servidor) — polling enquanto ativa
+  const { data: syncProg } = useQuery<SyncProgress>({
+    queryKey: ['sefaz-sync-progress'],
+    queryFn: async () => (await api.get('/sefaz/sync/progress')).data,
+    refetchInterval: (query) => (query.state.data?.running ? 4000 : false),
+  });
+  const syncing = !!syncProg?.running;
+
+  // Ao terminar a sincronização, mostra o resumo e atualiza a lista (que também
+  // vai sendo atualizada durante o processo, conforme as notas chegam).
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (syncProg?.running) {
+      wasRunning.current = true;
+      queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
+      return;
+    }
+    if (wasRunning.current) {
+      wasRunning.current = false;
+      queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
+      const partes = (syncProg?.empresas ?? []).map((e) => {
+        if (e.erro && e.cteErro) return `${e.empresa}: erro`;
+        const nfe = e.erro ? 'NF-e: erro' : `${e.novos ?? 0} NF-e`;
+        const cte = e.cteErro ? 'CT-e: erro' : `${e.novosCte ?? 0} CT-e`;
+        return `${e.empresa}: ${nfe}, ${cte}`;
+      });
+      toast({
+        title: 'Sincronização concluída',
+        description: partes.join(' · ') || 'Sem novidades',
+        variant: 'success',
+      });
+    }
+  }, [syncProg, queryClient]);
 
   const ufs = useMemo(() => {
     const set = new Set<string>();
@@ -84,21 +124,16 @@ export default function RecebidasPage() {
   const resumoCount = useMemo(() => (notas ?? []).filter((n) => !n.hasXml).length, [notas]);
 
   const sync = async () => {
-    setSyncing(true);
     try {
-      const { data } = await api.post('/sefaz/sync');
-      const partes = (data?.empresas ?? []).map((e: any) => {
-        if (e.erro && e.cteErro) return `${e.empresa}: erro`;
-        const nfe = e.erro ? 'NF-e: erro' : `${e.novos ?? 0} NF-e`;
-        const cte = e.cteErro ? 'CT-e: erro' : `${e.novosCte ?? 0} CT-e`;
-        return `${e.empresa}: ${nfe}, ${cte}`;
+      await api.post('/sefaz/sync');
+      queryClient.invalidateQueries({ queryKey: ['sefaz-sync-progress'] });
+      toast({
+        title: 'Sincronização iniciada',
+        description: 'Rodando em segundo plano — as notas vão aparecendo na lista. Pode levar vários minutos na primeira vez.',
+        variant: 'success',
       });
-      toast({ title: 'Sincronização concluída', description: partes.join(' · ') || 'Sem novidades', variant: 'success' });
-      queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
     } catch (e) {
       toast({ title: 'Erro ao sincronizar', description: apiError(e), variant: 'destructive' });
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -176,8 +211,16 @@ export default function RecebidasPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Notas Recebidas (SEFAZ)</h1>
           <p className="text-sm text-muted-foreground">
-            NF-e (ICMS) emitidas contra a empresa, baixadas da SEFAZ — organizadas pela emissão.
+            NF-e (ICMS) e CT-e (fretes) emitidos contra a empresa, baixados da SEFAZ — organizados pela emissão.
           </p>
+          {syncing && (
+            <p className="text-xs text-emerald-700 mt-1 animate-pulse">
+              Sincronizando em segundo plano —{' '}
+              {(syncProg?.empresas ?? [])
+                .map((e) => `${e.empresa}: ${e.novos ?? 0} NF-e, ${e.novosCte ?? 0} CT-e`)
+                .join(' · ') || 'iniciando...'}
+            </p>
+          )}
         </div>
 
         {/* Ações + filtros ao lado do botão Sincronizar */}

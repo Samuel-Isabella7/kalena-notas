@@ -31,6 +31,11 @@ export class SefazController {
     return this.sefaz.sync(reset === 'true' || reset === '1');
   }
 
+  @Get('sync/progress')
+  syncProgress() {
+    return this.sefaz.progress();
+  }
+
   @Get('empresas')
   empresas() {
     return this.sefaz.empresasFiltro();
