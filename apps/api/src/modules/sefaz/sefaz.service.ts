@@ -54,6 +54,13 @@ const ENDPOINTS = {
   '2': 'https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx',
 };
 
+// Distribuição de CT-e (fretes) — serviço separado do de NF-e, com NSU próprio.
+// A URL pode ser sobreposta por env (SEFAZ_CTE_DIST_URL).
+const CTE_ENDPOINTS = {
+  '1': 'https://www1.cte.fazenda.gov.br/CTeDistribuicaoDFe/CTeDistribuicaoDFe.asmx',
+  '2': 'https://hom1.cte.fazenda.gov.br/CTeDistribuicaoDFe/CTeDistribuicaoDFe.asmx',
+};
+
 // NFeRecepcaoEvento 4.00 — Manifestação do Destinatário (Ambiente Nacional).
 // A URL pode ser sobreposta por env (SEFAZ_RECEPCAO_EVENTO_URL) caso a SEFAZ a altere.
 const RECEPCAO_EVENTO_ENDPOINTS = {
@@ -146,7 +153,26 @@ export class SefazService {
     );
   }
 
-  /** Uma chamada ao DistribuicaoDFe a partir do ultNSU. */
+  /** Converte o retDistDFeInt (NF-e ou CT-e) no resultado padronizado. */
+  private mapDistResult(ret: any, fallbackNsu: string): DistResult {
+    const lote = ret.loteDistDFeInt?.docZip;
+    const arr = lote ? (Array.isArray(lote) ? lote : [lote]) : [];
+    const docs = arr.map((d: any) => ({
+      nsu: String(d['@_NSU'] || ''),
+      schema: String(d['@_schema'] || ''),
+      xml: this.gunzip(String(d['#text'] || d || '')),
+    }));
+
+    return {
+      cStat: String(ret.cStat || ''),
+      xMotivo: String(ret.xMotivo || ''),
+      ultNSU: String(ret.ultNSU || fallbackNsu),
+      maxNSU: String(ret.maxNSU || fallbackNsu),
+      docs,
+    };
+  }
+
+  /** Uma chamada ao NFeDistribuicaoDFe a partir do ultNSU. */
   private async callDistribuicao(company: SefazCompany, ultNsu: string): Promise<DistResult> {
     const agent = new https.Agent({ pfx: company.pfx, passphrase: company.senha });
     const url = ENDPOINTS[this.tpAmb() as '1' | '2'];
@@ -171,22 +197,57 @@ export class SefazService {
     if (!ret) {
       throw new BadRequestException(`SEFAZ (${company.nome}): resposta inesperada.`);
     }
+    return this.mapDistResult(ret, ultNsu);
+  }
 
-    const lote = ret.loteDistDFeInt?.docZip;
-    const arr = lote ? (Array.isArray(lote) ? lote : [lote]) : [];
-    const docs = arr.map((d: any) => ({
-      nsu: String(d['@_NSU'] || ''),
-      schema: String(d['@_schema'] || ''),
-      xml: this.gunzip(String(d['#text'] || d || '')),
-    }));
+  private buildSoapCte(company: SefazCompany, ultNsu: string): string {
+    const cUF = UF_IBGE[company.uf] || '35';
+    return (
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">' +
+      '<soap12:Body>' +
+      '<cteDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/cte/wsdl/CTeDistribuicaoDFe">' +
+      '<cteDadosMsg>' +
+      '<distDFeInt xmlns="http://www.portalfiscal.inf.br/cte" versao="1.00">' +
+      `<tpAmb>${this.tpAmb()}</tpAmb>` +
+      `<cUFAutor>${cUF}</cUFAutor>` +
+      `<CNPJ>${company.cnpj}</CNPJ>` +
+      `<distNSU><ultNSU>${this.pad15(ultNsu)}</ultNSU></distNSU>` +
+      '</distDFeInt>' +
+      '</cteDadosMsg>' +
+      '</cteDistDFeInteresse>' +
+      '</soap12:Body>' +
+      '</soap12:Envelope>'
+    );
+  }
 
-    return {
-      cStat: String(ret.cStat || ''),
-      xMotivo: String(ret.xMotivo || ''),
-      ultNSU: String(ret.ultNSU || ultNsu),
-      maxNSU: String(ret.maxNSU || ultNsu),
-      docs,
-    };
+  /** Uma chamada ao CTeDistribuicaoDFe a partir do ultNSU (cursor separado do de NF-e). */
+  private async callDistribuicaoCte(company: SefazCompany, ultNsu: string): Promise<DistResult> {
+    const agent = new https.Agent({ pfx: company.pfx, passphrase: company.senha });
+    const override = (this.config.get<string>('SEFAZ_CTE_DIST_URL', '') || '').trim();
+    const url = override || CTE_ENDPOINTS[this.tpAmb() as '1' | '2'];
+
+    let res;
+    try {
+      res = await axios.post(url, this.buildSoapCte(company, ultNsu), {
+        httpsAgent: agent,
+        timeout: 60_000,
+        headers: { 'Content-Type': 'application/soap+xml; charset=utf-8' },
+      });
+    } catch (e: any) {
+      const msg = e?.response?.data
+        ? String(e.response.data).slice(0, 300)
+        : e.message;
+      throw new BadRequestException(`SEFAZ CT-e (${company.nome}): falha na chamada — ${msg}`);
+    }
+
+    const parsed = this.parser.parse(res.data);
+    const ret =
+      parsed?.Envelope?.Body?.cteDistDFeInteresseResponse?.cteDistDFeInteresseResult?.retDistDFeInt;
+    if (!ret) {
+      throw new BadRequestException(`SEFAZ CT-e (${company.nome}): resposta inesperada.`);
+    }
+    return this.mapDistResult(ret, ultNsu);
   }
 
   private gunzip(b64: string): string {
@@ -208,20 +269,33 @@ export class SefazService {
 
     const resumo: any[] = [];
     for (const company of companies) {
+      const item: any = { empresa: company.nome };
+
+      // NF-e
       try {
         if (reset) {
           await this.prisma.sefazCursor.upsert({
             where: { cnpj: company.cnpj },
-            update: { ultNsu: '0' },
-            create: { cnpj: company.cnpj, ultNsu: '0' },
+            update: { ultNsu: '0', ultNsuCte: '0' },
+            create: { cnpj: company.cnpj, ultNsu: '0', ultNsuCte: '0' },
           });
         }
-        const r = await this.syncCompany(company);
-        resumo.push({ empresa: company.nome, ...r });
+        Object.assign(item, await this.syncCompany(company));
       } catch (e: any) {
-        this.logger.error(`Sync ${company.nome}: ${e.message}`);
-        resumo.push({ empresa: company.nome, erro: e.message });
+        this.logger.error(`Sync NF-e ${company.nome}: ${e.message}`);
+        item.erro = e.message;
       }
+
+      // CT-e (serviço separado; falha aqui não derruba o resultado de NF-e)
+      try {
+        const cte = await this.syncCompanyCte(company);
+        item.novosCte = cte.novos;
+      } catch (e: any) {
+        this.logger.error(`Sync CT-e ${company.nome}: ${e.message}`);
+        item.cteErro = e.message;
+      }
+
+      resumo.push(item);
     }
     return { empresas: resumo };
   }
@@ -265,6 +339,42 @@ export class SefazService {
     }
 
     return { novos, ultNSU: ultNsu, maxNSU, cStat, xMotivo };
+  }
+
+  /** Varre a distribuição de CT-e da empresa (NSU próprio, separado do de NF-e). */
+  private async syncCompanyCte(company: SefazCompany) {
+    const cursor = await this.prisma.sefazCursor.findUnique({ where: { cnpj: company.cnpj } });
+    let ultNsu = cursor?.ultNsuCte || '0';
+    let novos = 0;
+    let maxNSU = ultNsu;
+
+    for (let i = 0; i < 50; i++) {
+      const r = await this.callDistribuicaoCte(company, ultNsu);
+      maxNSU = r.maxNSU;
+
+      // 137 = nenhum documento; 138 = documentos localizados
+      if (r.cStat !== '138' && r.docs.length === 0) {
+        ultNsu = r.ultNSU;
+        break;
+      }
+
+      for (const doc of r.docs) {
+        const created = await this.persistDoc(company, doc);
+        if (created) novos++;
+      }
+      ultNsu = r.ultNSU;
+
+      await this.prisma.sefazCursor.upsert({
+        where: { cnpj: company.cnpj },
+        update: { ultNsuCte: ultNsu, maxNsuCte: maxNSU },
+        create: { cnpj: company.cnpj, ultNsuCte: ultNsu, maxNsuCte: maxNSU },
+      });
+
+      if (Number(ultNsu) >= Number(maxNSU) || r.docs.length === 0) break;
+      await new Promise((res) => setTimeout(res, 600));
+    }
+
+    return { novos, ultNSU: ultNsu, maxNSU };
   }
 
   /** Extrai os dados de um documento (NF-e, NFC-e ou CT-e), resumo ou completo. */
@@ -323,7 +433,9 @@ export class SefazService {
     const infCte =
       parsed?.cteProc?.CTe?.infCte ||
       parsed?.procCTe?.CTe?.infCte ||
-      parsed?.CTe?.infCte;
+      parsed?.CTe?.infCte ||
+      parsed?.cteOSProc?.CTeOS?.infCte ||
+      parsed?.CTeOS?.infCte;
     if (infCte) {
       return {
         tipoDoc: 'CTE',

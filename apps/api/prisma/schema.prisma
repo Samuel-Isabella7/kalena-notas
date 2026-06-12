@@ -106,10 +106,13 @@ model Invoice {
 }
 
 // Cursor (NSU) por CNPJ para a captura incremental na SEFAZ (Distribuição de DFe)
+// NF-e e CT-e têm serviços de distribuição separados, cada um com sua sequência de NSU.
 model SefazCursor {
   cnpj      String   @id
   ultNsu    String   @default("0") @map("ult_nsu")
   maxNsu    String?  @map("max_nsu")
+  ultNsuCte String   @default("0") @map("ult_nsu_cte")
+  maxNsuCte String?  @map("max_nsu_cte")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("sefaz_cursors")

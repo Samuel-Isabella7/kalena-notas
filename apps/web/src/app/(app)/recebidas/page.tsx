@@ -87,9 +87,12 @@ export default function RecebidasPage() {
     setSyncing(true);
     try {
       const { data } = await api.post('/sefaz/sync');
-      const partes = (data?.empresas ?? []).map((e: any) =>
-        e.erro ? `${e.empresa}: erro` : `${e.empresa}: ${e.novos} nova(s)`,
-      );
+      const partes = (data?.empresas ?? []).map((e: any) => {
+        if (e.erro && e.cteErro) return `${e.empresa}: erro`;
+        const nfe = e.erro ? 'NF-e: erro' : `${e.novos ?? 0} NF-e`;
+        const cte = e.cteErro ? 'CT-e: erro' : `${e.novosCte ?? 0} CT-e`;
+        return `${e.empresa}: ${nfe}, ${cte}`;
+      });
       toast({ title: 'Sincronização concluída', description: partes.join(' · ') || 'Sem novidades', variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
     } catch (e) {
@@ -351,8 +354,10 @@ export default function RecebidasPage() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        A SEFAZ entrega NF-e (mercadoria/ICMS). Notas de serviço (NFS-e) são municipais e não vêm por aqui.
-        Notas "resumo" ainda não têm o XML — use <strong>Manifestar</strong> (Ciência da Operação) para baixar o XML completo e habilitar o PDF.
+        A SEFAZ entrega NF-e (mercadoria/ICMS) e CT-e (fretes) — apenas os últimos ~90 dias ficam disponíveis
+        para captura. Notas de serviço (NFS-e) são municipais e não vêm por aqui. Notas "resumo" ainda não têm
+        o XML — use <strong>Manifestar</strong> (Ciência da Operação) para baixar o XML completo e habilitar o PDF.
+        CT-e já chega com o XML completo, sem precisar manifestar.
       </p>
     </div>
   );
