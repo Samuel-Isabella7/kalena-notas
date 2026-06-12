@@ -198,9 +198,10 @@ export default function MembrosPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ADMIN">Administrador</SelectItem>
-                  <SelectItem value="ADMIN_SERVICO">Administrador Serviço</SelectItem>
-                  <SelectItem value="ADMIN_ICMS">Administrador ICMS</SelectItem>
+                  <SelectItem value="ADMIN">{ROLE_LABELS.ADMIN}</SelectItem>
+                  <SelectItem value="ADMIN_SERVICO">{ROLE_LABELS.ADMIN_SERVICO}</SelectItem>
+                  <SelectItem value="ADMIN_ICMS">{ROLE_LABELS.ADMIN_ICMS}</SelectItem>
+                  <SelectItem value="BALANCO">{ROLE_LABELS.BALANCO}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

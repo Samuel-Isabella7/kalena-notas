@@ -21,5 +21,8 @@ apps/api/uploads/
 .DS_Store
 Thumbs.db
 
+# typescript build info
+*.tsbuildinfo
+
 # prisma
 apps/api/prisma/*.db

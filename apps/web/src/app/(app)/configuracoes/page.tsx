@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, HardDrive, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface StatusResponse {
@@ -26,10 +27,21 @@ function StatusRow({ ok, label, detail }: { ok: boolean; label: string; detail: 
 }
 
 export default function ConfiguracoesPage() {
+  const { can } = useAuth();
+
   const { data: status } = useQuery<StatusResponse>({
     queryKey: ['settings-status'],
     queryFn: async () => (await api.get('/settings/status')).data,
+    enabled: can('CRIADOR'),
   });
+
+  if (!can('CRIADOR')) {
+    return (
+      <div className="max-w-2xl mx-auto rounded-lg border bg-white p-10 text-center text-muted-foreground">
+        Apenas o criador pode acessar as configurações.
+      </div>
+    );
+  }
 
   const accounts = status?.omie.accounts ?? [];
 

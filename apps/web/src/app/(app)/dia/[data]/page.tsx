@@ -15,9 +15,10 @@ import {
   Clock,
   AlertCircle,
   Eye,
+  UserCheck,
 } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
-import { Invoice, InvoiceKind, OmieAccount, KIND_LABELS } from '@/types';
+import { Invoice, InvoiceKind, InvoiceStatus, OmieAccount, KIND_LABELS, STATUS_LABELS } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
 import { formatCurrency, formatDate, formatDocument, WEEKDAY_SHORT } from '@/lib/utils';
@@ -44,18 +45,24 @@ function StatusBadge({ status }: { status: Invoice['status'] }) {
   if (status === 'LANCADA')
     return (
       <Badge variant="success" className="gap-1">
-        <CheckCircle2 className="w-3 h-3" /> Lançada
+        <CheckCircle2 className="w-3 h-3" /> {STATUS_LABELS.LANCADA}
+      </Badge>
+    );
+  if (status === 'MANUAL')
+    return (
+      <Badge variant="info" className="gap-1">
+        <UserCheck className="w-3 h-3" /> {STATUS_LABELS.MANUAL}
       </Badge>
     );
   if (status === 'ERRO')
     return (
       <Badge variant="danger" className="gap-1">
-        <AlertCircle className="w-3 h-3" /> Erro
+        <AlertCircle className="w-3 h-3" /> {STATUS_LABELS.ERRO}
       </Badge>
     );
   return (
     <Badge variant="warning" className="gap-1">
-      <Clock className="w-3 h-3" /> Pendente
+      <Clock className="w-3 h-3" /> {STATUS_LABELS.PENDENTE}
     </Badge>
   );
 }
@@ -68,12 +75,13 @@ export default function DiaPage() {
   const { can } = useAuth();
   const canManage = can('CRIADOR', 'ADMIN'); // criador e admin: anexar, editar, lançar, excluir
   const canAttach = canManage;
-  const canSeeBoth = can('CRIADOR', 'ADMIN'); // criador e admin completo veem os dois tipos
+  const canSeeBoth = can('CRIADOR', 'ADMIN', 'BALANCO'); // veem os dois tipos (Balanço só leitura)
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [uploadAccount, setUploadAccount] = useState<OmieAccount>('SP');
   const [uploadKind, setUploadKind] = useState<InvoiceKind>('SERVICO');
+  const [uploadStatus, setUploadStatus] = useState<InvoiceStatus>('MANUAL');
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<Invoice | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -108,6 +116,7 @@ export default function DiaPage() {
       fd.append('date', date);
       fd.append('account', uploadAccount);
       fd.append('kind', uploadKind);
+      fd.append('status', uploadStatus);
       const { data } = await api.post('/invoices', fd);
       refetch();
       const ok = data?.extraction?.textOk;
@@ -194,6 +203,18 @@ export default function DiaPage() {
                 <SelectContent>
                   <SelectItem value="SP">SP</SelectItem>
                   <SelectItem value="RJ">RJ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Situação</label>
+              <Select value={uploadStatus} onValueChange={(v) => setUploadStatus(v as InvoiceStatus)}>
+                <SelectTrigger className="w-40 mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MANUAL">{STATUS_LABELS.MANUAL}</SelectItem>
+                  <SelectItem value="PENDENTE">{STATUS_LABELS.PENDENTE}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -49,7 +49,7 @@ export class InvoicesController {
     @CurrentUser() user: AuthUser,
   ) {
     const account = dto.account ?? OmieAccount.SP;
-    return this.invoices.upload(file, dto.date, account, dto.kind, user.id);
+    return this.invoices.upload(file, dto.date, account, dto.kind, user.id, dto.status);
   }
 
   @Get()

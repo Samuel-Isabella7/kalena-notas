@@ -1,18 +1,26 @@
-export type Role = 'CRIADOR' | 'ADMIN' | 'ADMIN_SERVICO' | 'ADMIN_ICMS';
+export type Role = 'CRIADOR' | 'ADMIN' | 'ADMIN_SERVICO' | 'ADMIN_ICMS' | 'BALANCO';
 export type OmieAccount = 'SP' | 'RJ';
 export type InvoiceKind = 'SERVICO' | 'ICMS';
-export type InvoiceStatus = 'PENDENTE' | 'LANCADA' | 'ERRO';
+export type InvoiceStatus = 'PENDENTE' | 'MANUAL' | 'LANCADA' | 'ERRO';
 
 export const ROLE_LABELS: Record<Role, string> = {
   CRIADOR: 'Criador',
   ADMIN: 'Administrador',
-  ADMIN_SERVICO: 'Administrador Serviço',
-  ADMIN_ICMS: 'Administrador ICMS',
+  ADMIN_SERVICO: 'Serviço',
+  ADMIN_ICMS: 'ICMS',
+  BALANCO: 'Balanço',
 };
 
 export const KIND_LABELS: Record<InvoiceKind, string> = {
   SERVICO: 'Serviço',
   ICMS: 'ICMS',
+};
+
+export const STATUS_LABELS: Record<InvoiceStatus, string> = {
+  PENDENTE: 'Pendente',
+  MANUAL: 'Lançado Manual',
+  LANCADA: 'Lançado via integração',
+  ERRO: 'Erro no lançamento',
 };
 
 export interface AuthUser {
@@ -69,6 +77,7 @@ export interface MonthSummary {
   businessDays: number;
   total: number;
   lancadas: number;
+  manuais: number;
   pendentes: number;
   erros: number;
 }
@@ -87,6 +96,7 @@ export interface CalendarDay {
   holiday: string | null;
   total: number;
   lancadas: number;
+  manuais: number;
   pendentes: number;
   erros: number;
 }

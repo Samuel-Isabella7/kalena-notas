@@ -8,7 +8,7 @@ export function allowedKinds(role: Role): InvoiceKind[] {
     case Role.ADMIN_ICMS:
       return [InvoiceKind.ICMS];
     default:
-      // CRIADOR e ADMIN veem os dois tipos
+      // CRIADOR, ADMIN e BALANCO veem os dois tipos
       return [InvoiceKind.SERVICO, InvoiceKind.ICMS];
   }
 }

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, FileText, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, AlertCircle, Clock, UserCheck } from 'lucide-react';
 import { api } from '@/lib/api';
 import { CalendarOverview, CalendarMonth } from '@/types';
 import { cn, WEEKDAY_SHORT } from '@/lib/utils';
@@ -160,6 +160,12 @@ export default function CalendarioPage() {
                             {d.lancadas}
                           </span>
                         )}
+                        {d.manuais > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600">
+                            <UserCheck className="w-3 h-3" />
+                            {d.manuais}
+                          </span>
+                        )}
                         {d.pendentes > 0 && (
                           <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600">
                             <Clock className="w-3 h-3" />
@@ -193,16 +199,16 @@ export default function CalendarioPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Hoje
               </span>
               <span className="inline-flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-green-700" /> Lançada na Omie
+                <CheckCircle2 className="w-3 h-3 text-green-700" /> Lançado via integração
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <UserCheck className="w-3 h-3 text-indigo-600" /> Lançado Manual
               </span>
               <span className="inline-flex items-center gap-1">
                 <Clock className="w-3 h-3 text-amber-600" /> Pendente
               </span>
               <span className="inline-flex items-center gap-1">
                 <AlertCircle className="w-3 h-3 text-red-600" /> Erro no lançamento
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="w-3 h-3 rounded bg-slate-100 border" /> Fim de semana / feriado
               </span>
             </div>
           </>

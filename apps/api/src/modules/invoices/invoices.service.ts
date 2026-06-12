@@ -35,6 +35,7 @@ export class InvoicesService {
     account: OmieAccount,
     kind: InvoiceKind,
     uploaderId: string,
+    status: InvoiceStatus = InvoiceStatus.MANUAL,
   ) {
     if (!file) throw new BadRequestException('Nenhum arquivo enviado.');
     if (!isBusinessDay(dateStr)) {
@@ -63,7 +64,7 @@ export class InvoicesService {
         competenceDate: this.toDate(dateStr),
         account,
         kind,
-        status: InvoiceStatus.PENDENTE,
+        status: status === InvoiceStatus.MANUAL ? InvoiceStatus.MANUAL : InvoiceStatus.PENDENTE,
         fileName: file.originalname,
         mimeType: file.mimetype,
         fileSize: file.size,

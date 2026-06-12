@@ -34,12 +34,13 @@ export class CalendarService {
       select: { competenceDate: true, status: true },
     });
 
-    const buckets: Record<number, { total: number; lancadas: number; pendentes: number; erros: number }> = {};
+    const buckets: Record<number, { total: number; lancadas: number; manuais: number; pendentes: number; erros: number }> = {};
     for (const inv of invoices) {
       const month = inv.competenceDate.getUTCMonth() + 1;
-      buckets[month] ??= { total: 0, lancadas: 0, pendentes: 0, erros: 0 };
+      buckets[month] ??= { total: 0, lancadas: 0, manuais: 0, pendentes: 0, erros: 0 };
       buckets[month].total++;
       if (inv.status === InvoiceStatus.LANCADA) buckets[month].lancadas++;
+      else if (inv.status === InvoiceStatus.MANUAL) buckets[month].manuais++;
       else if (inv.status === InvoiceStatus.ERRO) buckets[month].erros++;
       else buckets[month].pendentes++;
     }
@@ -50,19 +51,21 @@ export class CalendarService {
       businessDays: number;
       total: number;
       lancadas: number;
+      manuais: number;
       pendentes: number;
       erros: number;
     }> = [];
     for (let m = startMonthFor(year); m <= 12; m++) {
       const days = daysOfMonth(year, m);
       const businessDays = days.filter((d) => d.isBusinessDay).length;
-      const b = buckets[m] ?? { total: 0, lancadas: 0, pendentes: 0, erros: 0 };
+      const b = buckets[m] ?? { total: 0, lancadas: 0, manuais: 0, pendentes: 0, erros: 0 };
       months.push({
         month: m,
         name: MONTH_NAMES_PT[m - 1],
         businessDays,
         total: b.total,
         lancadas: b.lancadas,
+        manuais: b.manuais,
         pendentes: b.pendentes,
         erros: b.erros,
       });
@@ -80,19 +83,20 @@ export class CalendarService {
       select: { competenceDate: true, status: true },
     });
 
-    const byDay: Record<string, { total: number; lancadas: number; pendentes: number; erros: number }> = {};
+    const byDay: Record<string, { total: number; lancadas: number; manuais: number; pendentes: number; erros: number }> = {};
     for (const inv of invoices) {
       const key = inv.competenceDate.toISOString().slice(0, 10);
-      byDay[key] ??= { total: 0, lancadas: 0, pendentes: 0, erros: 0 };
+      byDay[key] ??= { total: 0, lancadas: 0, manuais: 0, pendentes: 0, erros: 0 };
       byDay[key].total++;
       if (inv.status === InvoiceStatus.LANCADA) byDay[key].lancadas++;
+      else if (inv.status === InvoiceStatus.MANUAL) byDay[key].manuais++;
       else if (inv.status === InvoiceStatus.ERRO) byDay[key].erros++;
       else byDay[key].pendentes++;
     }
 
     const days = daysOfMonth(year, month).map((d) => ({
       ...d,
-      ...(byDay[d.date] ?? { total: 0, lancadas: 0, pendentes: 0, erros: 0 }),
+      ...(byDay[d.date] ?? { total: 0, lancadas: 0, manuais: 0, pendentes: 0, erros: 0 }),
     }));
 
     return { year, month, name: MONTH_NAMES_PT[month - 1], days };

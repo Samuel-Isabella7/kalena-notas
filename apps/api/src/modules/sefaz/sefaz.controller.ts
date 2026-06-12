@@ -4,44 +4,65 @@ import { Response } from 'express';
 import { Role } from '@prisma/client';
 import { SefazService } from './sefaz.service';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
-import { allowedKinds } from '../../common/utils/role-scope';
+
+// Todos os perfis podem visualizar e sincronizar as notas Recebidas (SEFAZ).
+const ALL_ROLES: Role[] = [
+  Role.CRIADOR,
+  Role.ADMIN,
+  Role.ADMIN_SERVICO,
+  Role.ADMIN_ICMS,
+  Role.BALANCO,
+];
 
 @ApiTags('sefaz')
 @ApiBearerAuth()
 @Controller('sefaz')
+@Roles(...ALL_ROLES)
 export class SefazController {
   constructor(private readonly sefaz: SefazService) {}
 
   @Get('status')
-  @Roles(Role.CRIADOR, Role.ADMIN, Role.ADMIN_ICMS)
   status() {
     return this.sefaz.status();
   }
 
   @Post('sync')
-  @Roles(Role.CRIADOR, Role.ADMIN, Role.ADMIN_ICMS)
   sync(@Query('reset') reset?: string) {
     return this.sefaz.sync(reset === 'true' || reset === '1');
   }
 
   @Get('empresas')
-  empresas(@CurrentUser() user: AuthUser) {
-    return this.sefaz.empresasFiltro(user.role);
+  empresas() {
+    return this.sefaz.empresasFiltro();
   }
 
   @Get('received')
-  received(@CurrentUser() user: AuthUser, @Query('empresa') empresa?: string) {
-    return this.sefaz.listReceived({
-      kinds: allowedKinds(user.role),
-      empresaCnpj: empresa,
-    });
+  received(@Query('empresa') empresa?: string) {
+    return this.sefaz.listReceived({ empresaCnpj: empresa });
+  }
+
+  @Post('manifestar-todas')
+  manifestarTodas() {
+    return this.sefaz.manifestarTodas();
+  }
+
+  @Post('received/:id/manifestar')
+  manifestar(@Param('id') id: string) {
+    return this.sefaz.manifestarNota(id);
   }
 
   @Get('received/:id/xml')
-  async xml(@Param('id') id: string, @CurrentUser() user: AuthUser, @Res() res: Response) {
-    const { filename, content } = await this.sefaz.getXml(id, user.role);
+  async xml(@Param('id') id: string, @Res() res: Response) {
+    const { filename, content } = await this.sefaz.getXml(id);
     res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(content);
+  }
+
+  @Get('received/:id/pdf')
+  async pdf(@Param('id') id: string, @Res() res: Response) {
+    const { filename, content } = await this.sefaz.getPdf(id);
+    res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(content);
   }

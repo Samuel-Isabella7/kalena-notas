@@ -12,6 +12,7 @@ enum Role {
   ADMIN
   ADMIN_SERVICO
   ADMIN_ICMS
+  BALANCO
 }
 
 enum OmieAccount {
@@ -26,6 +27,7 @@ enum InvoiceKind {
 
 enum InvoiceStatus {
   PENDENTE
+  MANUAL
   LANCADA
   ERRO
 }

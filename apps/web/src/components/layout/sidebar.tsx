@@ -13,12 +13,14 @@ interface NavItem {
   roles: Role[];
 }
 
+const ALL: Role[] = ['CRIADOR', 'ADMIN', 'ADMIN_SERVICO', 'ADMIN_ICMS', 'BALANCO'];
+
 const items: NavItem[] = [
-  { label: 'Calendário', href: '/calendario', icon: CalendarDays, roles: ['CRIADOR', 'ADMIN', 'ADMIN_SERVICO', 'ADMIN_ICMS'] },
-  { label: 'Recebidas (SEFAZ)', href: '/recebidas', icon: Inbox, roles: ['CRIADOR', 'ADMIN', 'ADMIN_ICMS'] },
+  { label: 'Calendário', href: '/calendario', icon: CalendarDays, roles: ALL },
+  { label: 'Recebidas (SEFAZ)', href: '/recebidas', icon: Inbox, roles: ALL },
   { label: 'Membros', href: '/membros', icon: Users, roles: ['CRIADOR'] },
-  { label: 'Minha Conta', href: '/conta', icon: UserCog, roles: ['CRIADOR', 'ADMIN', 'ADMIN_SERVICO', 'ADMIN_ICMS'] },
-  { label: 'Configurações', href: '/configuracoes', icon: Settings, roles: ['CRIADOR', 'ADMIN'] },
+  { label: 'Minha Conta', href: '/conta', icon: UserCog, roles: ALL },
+  { label: 'Configurações', href: '/configuracoes', icon: Settings, roles: ['CRIADOR'] },
 ];
 
 export function Sidebar() {
