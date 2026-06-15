@@ -120,10 +120,13 @@ export default function DiaPage() {
       const { data } = await api.post('/invoices', fd);
       refetch();
       const ok = data?.extraction?.textOk;
+      const byAi = data?.extraction?.source === 'ai';
       toast({
         title: 'Nota anexada',
         description: ok
-          ? 'Dados lidos do PDF. Confira antes de lançar.'
+          ? byAi
+            ? 'Dados lidos por IA. Confira antes de lançar.'
+            : 'Dados lidos do PDF. Confira antes de lançar.'
           : 'Não foi possível ler o PDF automaticamente — preencha os campos manualmente.',
         variant: 'success',
       });

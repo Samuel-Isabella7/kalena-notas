@@ -88,11 +88,19 @@ export class InvoicesService {
         action: 'INVOICE_UPLOAD',
         entity: 'Invoice',
         entityId: invoice.id,
-        details: { date: dateStr, fileName: file.originalname, pdfOk: extracted.textOk },
+        details: {
+          date: dateStr,
+          fileName: file.originalname,
+          pdfOk: extracted.textOk,
+          source: extracted.source,
+        },
       },
     });
 
-    return { invoice: this.map(invoice), extraction: { textOk: extracted.textOk } };
+    return {
+      invoice: this.map(invoice),
+      extraction: { textOk: extracted.textOk, source: extracted.source },
+    };
   }
 
   async listByDate(dateStr: string, role: Role) {

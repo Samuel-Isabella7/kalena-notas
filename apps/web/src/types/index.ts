@@ -68,7 +68,7 @@ export interface Invoice {
 
 export interface UploadResult {
   invoice: Invoice;
-  extraction: { textOk: boolean };
+  extraction: { textOk: boolean; source?: 'ai' | 'regex' | 'none' };
 }
 
 export interface MonthSummary {

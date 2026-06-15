@@ -51,6 +51,10 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_CLIENT_ID
         sync: false
+      - key: GEMINI_API_KEY          # leitura de PDF por IA (opcional); vazio = só regex
+        sync: false
+      - key: GEMINI_MODEL
+        value: "gemini-2.5-flash"
 # Observações do plano grátis do Render:
 # - O serviço "hiberna" após ~15 min sem uso; a 1ª chamada depois disso demora ~30-60s (cold start).
 # - O disco é efêmero: NÃO guarde arquivos no servidor — use o Google Drive (já é o padrão em produção).

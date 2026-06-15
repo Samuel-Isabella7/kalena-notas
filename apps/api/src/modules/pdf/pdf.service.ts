@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import pdf from 'pdf-parse';
+import { AiExtractionService } from './ai-extraction.service';
 
 export interface ExtractedInvoice {
   fornecedorDoc: string | null;
@@ -8,13 +9,16 @@ export interface ExtractedInvoice {
   valor: number | null;
   dataEmissao: string | null; // YYYY-MM-DD
   dataVencimento: string | null; // YYYY-MM-DD
-  textOk: boolean; // false = não foi possível extrair texto (provável PDF escaneado)
+  textOk: boolean; // false = não foi possível extrair nada (nem IA nem texto)
+  source: 'ai' | 'regex' | 'none'; // de onde vieram os campos preenchidos
   rawSnippet: string;
 }
 
 @Injectable()
 export class PdfService {
   private readonly logger = new Logger(PdfService.name);
+
+  constructor(private readonly ai: AiExtractionService) {}
 
   async extract(buffer: Buffer, mimeType: string): Promise<ExtractedInvoice> {
     const empty: ExtractedInvoice = {
@@ -25,6 +29,7 @@ export class PdfService {
       dataEmissao: null,
       dataVencimento: null,
       textOk: false,
+      source: 'none',
       rawSnippet: '',
     };
 
@@ -32,6 +37,16 @@ export class PdfService {
       return empty;
     }
 
+    // 1) IA (Gemini): lê o PDF direto, inclusive escaneado. Só roda se houver chave.
+    if (this.ai.enabled()) {
+      const aiData = await this.ai.extract(buffer, mimeType);
+      if (aiData && this.hasAnyField(aiData)) {
+        return { ...empty, ...aiData, textOk: true, source: 'ai' };
+      }
+      this.logger.log('IA sem resultado utilizável — usando heurística de regex.');
+    }
+
+    // 2) Fallback: heurística por regex sobre o texto do PDF
     let text = '';
     try {
       const data = await pdf(buffer);
@@ -41,7 +56,7 @@ export class PdfService {
       return empty;
     }
 
-    // PDF sem texto extraível (provavelmente imagem escaneada)
+    // PDF sem texto extraível (provavelmente imagem escaneada) e sem IA disponível
     if (text.replace(/\s/g, '').length < 20) {
       return { ...empty, rawSnippet: text.slice(0, 500) };
     }
@@ -55,8 +70,18 @@ export class PdfService {
       dataEmissao: this.dataEmissao(text),
       dataVencimento: this.dataVencimento(text),
       textOk: true,
+      source: 'regex',
       rawSnippet: text.slice(0, 800),
     };
+  }
+
+  private hasAnyField(d: {
+    fornecedorDoc: string | null;
+    fornecedorNome: string | null;
+    numeroDocumento: string | null;
+    valor: number | null;
+  }): boolean {
+    return !!(d.fornecedorDoc || d.fornecedorNome || d.numeroDocumento || d.valor != null);
   }
 
   /** O primeiro CNPJ do DANFE costuma ser o do emitente (fornecedor). */
