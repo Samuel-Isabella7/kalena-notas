@@ -4,6 +4,7 @@ import { Response } from 'express';
 import { Role } from '@prisma/client';
 import { SefazService } from './sefaz.service';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 // Todos os perfis podem visualizar e sincronizar as notas Recebidas (SEFAZ).
 const ALL_ROLES: Role[] = [
@@ -24,6 +25,13 @@ export class SefazController {
   @Get('status')
   status() {
     return this.sefaz.status();
+  }
+
+  // Diagnóstico temporário (contagens + cursores), público para depuração.
+  @Public()
+  @Get('diag')
+  diag() {
+    return this.sefaz.diag();
   }
 
   @Post('sync')

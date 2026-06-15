@@ -642,6 +642,34 @@ export class SefazService {
     return this.companies().map((c) => ({ cnpj: c.cnpj, nome: c.nome, uf: c.uf }));
   }
 
+  /** Diagnóstico: contagens reais no banco + posição dos cursores (sem dados sensíveis). */
+  async diag() {
+    const total = await this.prisma.receivedNfe.count();
+    const porTipo = await this.prisma.receivedNfe.groupBy({
+      by: ['tipoDoc'],
+      _count: { _all: true },
+    });
+    const semData = await this.prisma.receivedNfe.count({ where: { dataEmissao: null } });
+    const resumo = await this.prisma.receivedNfe.count({ where: { resumoOnly: true } });
+    const porEmpresa = await this.prisma.receivedNfe.groupBy({
+      by: ['empresaUf'],
+      _count: { _all: true },
+    });
+    const cursors = await this.prisma.sefazCursor.findMany();
+    return {
+      total,
+      semDataEmissao: semData,
+      resumoOnly: resumo,
+      porTipo: porTipo.map((t) => ({ tipo: t.tipoDoc, qtd: t._count._all })),
+      porEmpresaUf: porEmpresa.map((e) => ({ uf: e.empresaUf, qtd: e._count._all })),
+      cursores: cursors.map((c) => ({
+        cnpj: c.cnpj,
+        nfe: { ult: c.ultNsu, max: c.maxNsu },
+        cte: { ult: c.ultNsuCte, max: c.maxNsuCte },
+      })),
+    };
+  }
+
   private async fetchNoteXml(id: string) {
     const note = await this.prisma.receivedNfe.findUnique({ where: { id } });
     if (!note) throw new NotFoundException('Nota não encontrada.');
