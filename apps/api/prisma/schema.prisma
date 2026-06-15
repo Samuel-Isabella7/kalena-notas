@@ -49,9 +49,32 @@ model User {
 
   uploadedInvoices Invoice[] @relation("UploadedBy")
   launchedInvoices Invoice[] @relation("LaunchedBy")
+  physicalNotes    PhysicalNote[] @relation("PhysicalNotesUploaded")
   activityLogs     ActivityLog[]
 
   @@map("users")
+}
+
+// Notas físicas: documentos em papel anexados manualmente (nome + observação).
+// Não são fiscais — não vão para a Omie nem para o calendário; só vão ao Drive.
+model PhysicalNote {
+  id          String  @id @default(cuid())
+  nome        String
+  observacao  String? @db.Text
+  fileName    String  @map("file_name")
+  mimeType    String  @map("mime_type")
+  fileSize    Int     @map("file_size")
+  driveFileId String? @map("drive_file_id")
+  driveLink   String? @map("drive_link")
+  localPath   String? @map("local_path")
+
+  uploadedById String @map("uploaded_by_id")
+  uploadedBy   User   @relation("PhysicalNotesUploaded", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("physical_notes")
 }
 
 model Invoice {

@@ -401,13 +401,6 @@ export default function RecebidasPage() {
           </table>
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        A SEFAZ entrega NF-e (mercadoria/ICMS) e CT-e (fretes) — apenas os últimos ~90 dias ficam disponíveis
-        para captura. Notas de serviço (NFS-e) são municipais e não vêm por aqui. Notas "resumo" ainda não têm
-        o XML — use <strong>Manifestar</strong> (Ciência da Operação) para baixar o XML completo e habilitar o PDF.
-        CT-e já chega com o XML completo, sem precisar manifestar.
-      </p>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SefazModule } from './modules/sefaz/sefaz.module';
+import { PhysicalNotesModule } from './modules/physical-notes/physical-notes.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -32,6 +33,7 @@ import { BootstrapService } from './common/bootstrap.service';
     CalendarModule,
     SettingsModule,
     SefazModule,
+    PhysicalNotesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

@@ -80,6 +80,25 @@ export interface ReceivedMeta {
   meses: string[];
 }
 
+export interface PhysicalNote {
+  id: string;
+  nome: string;
+  observacao: string | null;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  driveLink: string | null;
+  hasFile: boolean;
+  uploadedById: string;
+  uploadedByName: string | null;
+  createdAt: string;
+}
+
+export interface PhysicalNoteMeta {
+  total: number;
+  meses: string[];
+}
+
 export interface MonthSummary {
   month: number;
   name: string;
