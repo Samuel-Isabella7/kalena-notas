@@ -24,9 +24,14 @@ export class AuthService {
     return this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID', '').trim();
   }
 
-  /** Diz ao frontend quais formas de login estão habilitadas. */
+  /** Diz ao frontend quais formas de login estão habilitadas (e diagnóstico de integrações). */
   providers() {
-    return { google: !!this.googleClientId };
+    const geminiKey = this.config.get<string>('GEMINI_API_KEY', '').trim();
+    return {
+      google: !!this.googleClientId,
+      aiExtraction: !!geminiKey, // true = leitura de PDF por IA ativa
+      aiModel: geminiKey ? this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash').trim() : null,
+    };
   }
 
   private issueToken(user: { id: string; email: string; role: string; name: string }) {
