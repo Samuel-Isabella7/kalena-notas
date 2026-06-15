@@ -71,6 +71,15 @@ export interface UploadResult {
   extraction: { textOk: boolean; source?: 'ai' | 'regex' | 'none' };
 }
 
+export interface ReceivedMeta {
+  total: number;
+  manifestaveis: number;
+  ufs: { uf: string; qtd: number }[];
+  tipos: { tipo: string; qtd: number }[];
+  emitentes: string[];
+  meses: string[];
+}
+
 export interface MonthSummary {
   month: number;
   name: string;

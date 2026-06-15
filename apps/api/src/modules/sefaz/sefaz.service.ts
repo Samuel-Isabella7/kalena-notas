@@ -588,15 +588,22 @@ export class SefazService {
     chave: string,
     dataEmissao: string | undefined,
     xml: string,
-  ) {
-    const [year, month] = (dataEmissao || '0000-00').split('-');
-    const pasta = tipoDoc === 'CTE' ? 'CT-e' : tipoDoc === 'NFCE' ? 'NFC-e' : 'NF-e';
-    return this.drive.uploadToSegments(
-      Buffer.from(xml, 'utf8'),
-      `${chave}.xml`,
-      'application/xml',
-      ['Recebidas SEFAZ', pasta, year || 'sem-data', month || '00'],
-    );
+  ): Promise<{ driveFileId: string | null; driveLink: string | null; localPath: string | null }> {
+    try {
+      const [year, month] = (dataEmissao || '0000-00').split('-');
+      const pasta = tipoDoc === 'CTE' ? 'CT-e' : tipoDoc === 'NFCE' ? 'NFC-e' : 'NF-e';
+      return await this.drive.uploadToSegments(
+        Buffer.from(xml, 'utf8'),
+        `${chave}.xml`,
+        'application/xml',
+        ['Recebidas SEFAZ', pasta, year || 'sem-data', month || '00'],
+      );
+    } catch (e: any) {
+      // Nunca deixar uma falha de armazenamento descartar a nota: o registro é
+      // criado mesmo assim e o XML pode ser rebaixado/baixado depois.
+      this.logger.warn(`storeXml falhou (${chave}): ${e.message}`);
+      return { driveFileId: null, driveLink: null, localPath: null };
+    }
   }
 
   private isoDate(dh: any): string | undefined {
@@ -607,14 +614,35 @@ export class SefazService {
 
   // ---------- Consulta das notas capturadas ----------
   // Todas as notas recebidas (ICMS) são visíveis a todos os perfis — sem filtro por tipo.
-  async listReceived(params: { empresaCnpj?: string; limit?: number } = {}) {
+  // Os filtros (UF/tipo/mês/emitente) são aplicados no BANCO: o volume (milhares de CT-e)
+  // não cabe numa única resposta, então o frontend filtra no servidor.
+  async listReceived(
+    params: {
+      empresaCnpj?: string;
+      uf?: string;
+      tipo?: string;
+      mes?: string; // YYYY-MM (por emissão)
+      emitente?: string;
+      limit?: number;
+    } = {},
+  ) {
     const where: Prisma.ReceivedNfeWhereInput = {};
     if (params.empresaCnpj) where.empresaCnpj = params.empresaCnpj;
+    if (params.uf) where.empresaUf = params.uf;
+    if (params.tipo) where.tipoDoc = params.tipo;
+    if (params.emitente) where.emitenteNome = params.emitente;
+    if (params.mes && /^\d{4}-\d{2}$/.test(params.mes)) {
+      const [y, m] = params.mes.split('-').map(Number);
+      where.dataEmissao = {
+        gte: new Date(Date.UTC(y, m - 1, 1)),
+        lt: new Date(Date.UTC(y, m, 1)),
+      };
+    }
 
     const rows = await this.prisma.receivedNfe.findMany({
       where,
       orderBy: { dataEmissao: 'desc' },
-      take: params.limit ?? 500,
+      take: params.limit ?? 5000,
     });
 
     return rows.map((r) => ({
@@ -640,6 +668,44 @@ export class SefazService {
   /** Empresas configuradas para o filtro do frontend. */
   empresasFiltro() {
     return this.companies().map((c) => ({ cnpj: c.cnpj, nome: c.nome, uf: c.uf }));
+  }
+
+  /**
+   * Opções dos filtros + total, calculados no banco sobre TODAS as notas
+   * (não só as exibidas). Alimenta os dropdowns de mês/emitente/UF/tipo.
+   */
+  async receivedMeta() {
+    const [total, porUf, porTipo, emitentesRows, mesesRaw, manifestaveis] = await Promise.all([
+      this.prisma.receivedNfe.count(),
+      this.prisma.receivedNfe.groupBy({ by: ['empresaUf'], _count: { _all: true } }),
+      this.prisma.receivedNfe.groupBy({ by: ['tipoDoc'], _count: { _all: true } }),
+      this.prisma.receivedNfe.findMany({
+        distinct: ['emitenteNome'],
+        select: { emitenteNome: true },
+        where: { emitenteNome: { not: null } },
+      }),
+      this.prisma.$queryRaw<{ mes: string }[]>`
+        SELECT DISTINCT to_char(data_emissao, 'YYYY-MM') AS mes
+        FROM received_nfe
+        WHERE data_emissao IS NOT NULL
+        ORDER BY mes DESC`,
+      this.prisma.receivedNfe.count({ where: { resumoOnly: true, tipoDoc: { not: 'CTE' } } }),
+    ]);
+
+    return {
+      total,
+      manifestaveis,
+      ufs: porUf
+        .map((u) => ({ uf: u.empresaUf, qtd: u._count._all }))
+        .filter((u) => u.uf)
+        .sort((a, b) => (a.uf! > b.uf! ? 1 : -1)),
+      tipos: porTipo.map((t) => ({ tipo: t.tipoDoc, qtd: t._count._all })),
+      emitentes: emitentesRows
+        .map((e) => e.emitenteNome!)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+      meses: mesesRaw.map((r) => r.mes),
+    };
   }
 
   /** Diagnóstico: contagens reais no banco + posição dos cursores (sem dados sensíveis). */

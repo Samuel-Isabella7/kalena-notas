@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
-import { ReceivedNfe } from '@/types';
+import { ReceivedNfe, ReceivedMeta } from '@/types';
 import { toast } from '@/hooks/use-toast';
 import { formatCurrency, formatDate, formatDocument } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -45,9 +45,23 @@ export default function RecebidasPage() {
 
   const tipoLabel = (t: string) => (t === 'CTE' ? 'CT-e' : t === 'NFCE' ? 'NFC-e' : 'NF-e');
 
+  // Lista filtrada NO SERVIDOR (o banco tem milhares de notas; não dá pra trazer todas)
   const { data: notas, isLoading } = useQuery<ReceivedNfe[]>({
-    queryKey: ['received-nfe'],
-    queryFn: async () => (await api.get('/sefaz/received')).data,
+    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF],
+    queryFn: async () => {
+      const params: Record<string, string> = {};
+      if (filtro !== 'TODAS') params.uf = filtro;
+      if (tipoF !== 'TODOS') params.tipo = tipoF;
+      if (mesF !== 'TODOS') params.mes = mesF;
+      if (emitenteF !== 'TODOS') params.emitente = emitenteF;
+      return (await api.get('/sefaz/received', { params })).data;
+    },
+  });
+
+  // Opções dos filtros + total, calculados no servidor sobre TODAS as notas
+  const { data: meta } = useQuery<ReceivedMeta>({
+    queryKey: ['received-meta'],
+    queryFn: async () => (await api.get('/sefaz/received/meta')).data,
   });
 
   // Progresso da sincronização (roda em background no servidor) — polling enquanto ativa
@@ -58,18 +72,18 @@ export default function RecebidasPage() {
   });
   const syncing = !!syncProg?.running;
 
-  // Ao terminar a sincronização, mostra o resumo e atualiza a lista (que também
-  // vai sendo atualizada durante o processo, conforme as notas chegam).
+  // Ao TERMINAR a sincronização, atualiza lista + opções de uma vez (não recarrega
+  // a cada 4s para não ficar "piscando"/embaralhando a lista durante o processo).
   const wasRunning = useRef(false);
   useEffect(() => {
     if (syncProg?.running) {
       wasRunning.current = true;
-      queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
       return;
     }
     if (wasRunning.current) {
       wasRunning.current = false;
       queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
+      queryClient.invalidateQueries({ queryKey: ['received-meta'] });
       const partes = (syncProg?.empresas ?? []).map((e) => {
         if (e.erro && e.cteErro) return `${e.empresa}: erro`;
         const nfe = e.erro ? 'NF-e: erro' : `${e.novos ?? 0} NF-e`;
@@ -84,44 +98,17 @@ export default function RecebidasPage() {
     }
   }, [syncProg, queryClient]);
 
-  const ufs = useMemo(() => {
-    const set = new Set<string>();
-    (notas ?? []).forEach((n) => n.empresaUf && set.add(n.empresaUf));
-    return Array.from(set).sort();
-  }, [notas]);
+  const ufs = useMemo(() => (meta?.ufs ?? []).map((u) => u.uf), [meta]);
+  const tipos = useMemo(() => (meta?.tipos ?? []).map((t) => t.tipo), [meta]);
+  const meses = meta?.meses ?? [];
+  const emitentes = meta?.emitentes ?? [];
+  const total = meta?.total ?? 0;
+  const ufCount = (uf: string) => meta?.ufs.find((u) => u.uf === uf)?.qtd ?? 0;
+  const tipoCount = (t: string) => meta?.tipos.find((x) => x.tipo === t)?.qtd ?? 0;
 
-  const tipos = useMemo(() => {
-    const set = new Set<string>();
-    (notas ?? []).forEach((n) => n.tipoDoc && set.add(n.tipoDoc));
-    return Array.from(set).sort();
-  }, [notas]);
-
-  // Meses de emissão presentes (YYYY-MM), mais recentes primeiro
-  const meses = useMemo(() => {
-    const set = new Set<string>();
-    (notas ?? []).forEach((n) => n.dataEmissao && set.add(n.dataEmissao.slice(0, 7)));
-    return Array.from(set).sort().reverse();
-  }, [notas]);
-
-  // Emitentes (fornecedores) distintos, em ordem alfabética
-  const emitentes = useMemo(() => {
-    const set = new Set<string>();
-    (notas ?? []).forEach((n) => n.emitenteNome && set.add(n.emitenteNome));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [notas]);
-
-  const visiveis = useMemo(() => {
-    if (!notas) return [];
-    return notas.filter(
-      (n) =>
-        (filtro === 'TODAS' || n.empresaUf === filtro) &&
-        (tipoF === 'TODOS' || n.tipoDoc === tipoF) &&
-        (mesF === 'TODOS' || (n.dataEmissao ?? '').slice(0, 7) === mesF) &&
-        (emitenteF === 'TODOS' || n.emitenteNome === emitenteF),
-    );
-  }, [notas, filtro, tipoF, mesF, emitenteF]);
-
-  const resumoCount = useMemo(() => (notas ?? []).filter((n) => !n.hasXml).length, [notas]);
+  // O servidor já devolve filtrado — exibimos como veio.
+  const visiveis = notas ?? [];
+  const resumoCount = meta?.manifestaveis ?? 0;
 
   const sync = async () => {
     try {
@@ -284,7 +271,7 @@ export default function RecebidasPage() {
             >
               {f === 'TODAS' ? 'Todas' : f}
               <span className="ml-1 text-xs opacity-70">
-                ({f === 'TODAS' ? (notas?.length ?? 0) : (notas ?? []).filter((n) => n.empresaUf === f).length})
+                ({f === 'TODAS' ? total : ufCount(f)})
               </span>
             </button>
           ))}
@@ -305,11 +292,19 @@ export default function RecebidasPage() {
             >
               {t === 'TODOS' ? 'Todos os tipos' : tipoLabel(t)}
               <span className="ml-1 opacity-70">
-                ({t === 'TODOS' ? (notas?.length ?? 0) : (notas ?? []).filter((n) => n.tipoDoc === t).length})
+                ({t === 'TODOS' ? total : tipoCount(t)})
               </span>
             </button>
           ))}
         </div>
+      )}
+
+      {/* Total real no banco + quantas estão sendo exibidas no filtro atual */}
+      {total > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {total.toLocaleString('pt-BR')} nota(s) no total · exibindo {visiveis.length.toLocaleString('pt-BR')}
+          {visiveis.length >= 5000 && ' (limite — use os filtros de mês/emitente para ver as demais)'}
+        </p>
       )}
 
       {isLoading ? (

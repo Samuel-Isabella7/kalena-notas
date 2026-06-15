@@ -49,9 +49,20 @@ export class SefazController {
     return this.sefaz.empresasFiltro();
   }
 
+  @Get('received/meta')
+  receivedMeta() {
+    return this.sefaz.receivedMeta();
+  }
+
   @Get('received')
-  received(@Query('empresa') empresa?: string) {
-    return this.sefaz.listReceived({ empresaCnpj: empresa });
+  received(
+    @Query('empresa') empresa?: string,
+    @Query('uf') uf?: string,
+    @Query('tipo') tipo?: string,
+    @Query('mes') mes?: string,
+    @Query('emitente') emitente?: string,
+  ) {
+    return this.sefaz.listReceived({ empresaCnpj: empresa, uf, tipo, mes, emitente });
   }
 
   @Post('manifestar-todas')
