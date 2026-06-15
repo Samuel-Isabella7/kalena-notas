@@ -64,6 +64,12 @@ export default function RecebidasPage() {
     queryFn: async () => (await api.get('/sefaz/received/meta')).data,
   });
 
+  // Empresas configuradas (SP/RJ/AL) — fonte do filtro de UF, sempre presente
+  const { data: empresas } = useQuery<{ cnpj: string; nome: string; uf: string }[]>({
+    queryKey: ['sefaz-empresas'],
+    queryFn: async () => (await api.get('/sefaz/empresas')).data,
+  });
+
   // Progresso da sincronização (roda em background no servidor) — polling enquanto ativa
   const { data: syncProg } = useQuery<SyncProgress>({
     queryKey: ['sefaz-sync-progress'],
@@ -98,7 +104,12 @@ export default function RecebidasPage() {
     }
   }, [syncProg, queryClient]);
 
-  const ufs = useMemo(() => (meta?.ufs ?? []).map((u) => u.uf), [meta]);
+  // UF vem das empresas configuradas (SP/RJ/AL) — sempre presente, não depende das notas
+  const ufs = useMemo(() => {
+    const set = new Set<string>();
+    (empresas ?? []).forEach((e) => e.uf && set.add(e.uf));
+    return Array.from(set).sort();
+  }, [empresas]);
   const tipos = useMemo(() => (meta?.tipos ?? []).map((t) => t.tipo), [meta]);
   const meses = meta?.meses ?? [];
   const emitentes = meta?.emitentes ?? [];
