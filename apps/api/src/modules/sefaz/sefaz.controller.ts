@@ -61,8 +61,20 @@ export class SefazController {
     @Query('tipo') tipo?: string,
     @Query('mes') mes?: string,
     @Query('emitente') emitente?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.sefaz.listReceived({ empresaCnpj: empresa, uf, tipo, mes, emitente });
+    return this.sefaz.listReceived({
+      empresaCnpj: empresa,
+      uf,
+      tipo,
+      mes,
+      emitente,
+      q,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
   }
 
   @Post('manifestar-todas')

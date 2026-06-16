@@ -81,7 +81,7 @@ export default function CalendarioPage() {
                   'rounded-lg border p-3 text-left transition-all',
                   active
                     ? 'border-slate-900 bg-slate-900 text-white shadow-md'
-                    : 'bg-white hover:border-slate-400',
+                    : 'bg-card hover:border-muted-foreground/40',
                 )}
               >
                 <div className="font-semibold text-sm">{m.name}</div>
@@ -100,7 +100,7 @@ export default function CalendarioPage() {
       )}
 
       {/* Grade de dias */}
-      <div className="rounded-lg border bg-white p-4">
+      <div className="rounded-lg border bg-card p-4">
         <h2 className="font-semibold mb-4">
           {monthData?.name} de {year}
         </h2>
@@ -130,20 +130,20 @@ export default function CalendarioPage() {
                     className={cn(
                       'h-24 rounded-md border p-2 flex flex-col text-sm transition-all',
                       blocked
-                        ? 'bg-slate-50 border-slate-100 text-slate-400'
-                        : 'bg-white hover:border-slate-900 hover:shadow-sm cursor-pointer',
+                        ? 'bg-muted/50 border-slate-100 text-muted-foreground'
+                        : 'bg-card hover:border-slate-900 hover:shadow-sm cursor-pointer',
                       isToday && 'ring-2 ring-blue-500 ring-offset-1 border-blue-500',
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5">
-                        <span className={cn('font-semibold', blocked && 'text-slate-400', isToday && 'text-blue-600')}>
+                        <span className={cn('font-semibold', blocked && 'text-muted-foreground', isToday && 'text-blue-600')}>
                           {d.day}
                         </span>
                         {isToday && <span className="w-2 h-2 rounded-full bg-blue-500" title="Hoje" />}
                       </span>
                       {!blocked && d.total > 0 && (
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-600">
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           <FileText className="w-3 h-3" /> {d.total}
                         </span>
                       )}

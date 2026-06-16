@@ -122,17 +122,6 @@ export interface DashboardSummary {
     quem: string;
     createdAt: string;
   }[];
-  ultimasRecebidas: {
-    id: string;
-    tipoDoc: string;
-    emitenteNome: string | null;
-    emitenteCnpj: string | null;
-    numero: string | null;
-    valor: number | null;
-    dataEmissao: string | null;
-    hasXml: boolean;
-    capturedAt: string;
-  }[];
   integracoes: { sefaz: boolean; omie: boolean; drive: boolean; ia: boolean };
 }
 

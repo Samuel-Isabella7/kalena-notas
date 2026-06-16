@@ -245,7 +245,7 @@ export default function DiaPage() {
               onClick={() => setFilter(f)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors',
-                filter === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-white hover:border-slate-400',
+                filter === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-card hover:border-muted-foreground/40',
               )}
             >
               {f === 'TODOS' ? 'Todos' : KIND_LABELS[f as InvoiceKind]}
@@ -259,7 +259,7 @@ export default function DiaPage() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : visible.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-white p-12 text-center">
+        <div className="rounded-lg border border-dashed bg-card p-12 text-center">
           <FileText className="w-10 h-10 mx-auto text-slate-300" />
           <p className="mt-3 text-sm text-muted-foreground">
             {canAttach
@@ -270,7 +270,7 @@ export default function DiaPage() {
       ) : (
         <div className="space-y-3">
           {visible.map((inv) => (
-            <div key={inv.id} className="rounded-lg border bg-white p-4 flex items-center gap-4 flex-wrap">
+            <div key={inv.id} className="rounded-lg border bg-card p-4 flex items-center gap-4 flex-wrap">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <StatusBadge status={inv.status} />

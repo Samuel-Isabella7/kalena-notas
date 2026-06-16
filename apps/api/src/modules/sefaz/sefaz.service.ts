@@ -623,7 +623,10 @@ export class SefazService {
       tipo?: string;
       mes?: string; // YYYY-MM (por emissão)
       emitente?: string;
+      q?: string; // busca por emitente / número / CNPJ
       limit?: number;
+      page?: number; // paginação opcional (1-based)
+      pageSize?: number;
     } = {},
   ) {
     const where: Prisma.ReceivedNfeWhereInput = {};
@@ -638,11 +641,24 @@ export class SefazService {
         lt: new Date(Date.UTC(y, m, 1)),
       };
     }
+    const q = (params.q || '').trim();
+    if (q) {
+      where.OR = [
+        { emitenteNome: { contains: q, mode: 'insensitive' } },
+        { numero: { contains: q.replace(/\D/g, '') || q } },
+        { emitenteCnpj: { contains: q.replace(/\D/g, '') || q } },
+        { chave: { contains: q.replace(/\D/g, '') || q } },
+      ];
+    }
 
+    // Paginação opcional (usada pelo Dashboard). Sem ela, mantém o comportamento atual.
+    const usePage = params.page != null && params.pageSize != null;
     const rows = await this.prisma.receivedNfe.findMany({
       where,
       orderBy: { dataEmissao: 'desc' },
-      take: params.limit ?? 5000,
+      ...(usePage
+        ? { skip: Math.max(0, (params.page! - 1) * params.pageSize!), take: params.pageSize! }
+        : { take: params.limit ?? 5000 }),
     });
 
     return rows.map((r) => ({

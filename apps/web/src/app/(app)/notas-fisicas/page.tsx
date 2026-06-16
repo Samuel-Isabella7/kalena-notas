@@ -71,7 +71,7 @@ export default function NotasFisicasPage() {
 
   if (!canView) {
     return (
-      <div className="max-w-2xl mx-auto rounded-lg border bg-white p-10 text-center text-muted-foreground">
+      <div className="max-w-2xl mx-auto rounded-lg border bg-card p-10 text-center text-muted-foreground">
         Você não tem acesso às notas físicas.
       </div>
     );
@@ -200,7 +200,7 @@ export default function NotasFisicasPage() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (notas ?? []).length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-white p-12 text-center">
+        <div className="rounded-lg border border-dashed bg-card p-12 text-center">
           <Inbox className="w-10 h-10 mx-auto text-slate-300" />
           <p className="mt-3 text-sm text-muted-foreground">
             Nenhuma nota física neste filtro.
@@ -208,9 +208,9 @@ export default function NotasFisicasPage() {
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-white overflow-x-auto">
+        <div className="rounded-lg border bg-card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs text-muted-foreground">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Anexado em</th>
                 <th className="px-4 py-2 font-medium">Nome</th>
@@ -222,7 +222,7 @@ export default function NotasFisicasPage() {
             </thead>
             <tbody>
               {(notas ?? []).map((n) => (
-                <tr key={n.id} className="border-t hover:bg-slate-50/60">
+                <tr key={n.id} className="border-t hover:bg-muted/50">
                   <td className="px-4 py-2 whitespace-nowrap">{formatDateTime(n.createdAt)}</td>
                   <td className="px-4 py-2 font-medium">{n.nome}</td>
                   <td className="px-4 py-2 text-muted-foreground max-w-xs">{n.observacao || '-'}</td>

@@ -46,7 +46,7 @@ export default function MembrosPage() {
 
   if (!can('CRIADOR')) {
     return (
-      <div className="max-w-2xl mx-auto rounded-lg border bg-white p-10 text-center text-muted-foreground">
+      <div className="max-w-2xl mx-auto rounded-lg border bg-card p-10 text-center text-muted-foreground">
         Apenas o criador pode gerenciar membros.
       </div>
     );
@@ -138,12 +138,12 @@ export default function MembrosPage() {
       ) : (
         <div className="space-y-2">
           {members?.map((m) => (
-            <div key={m.id} className="rounded-lg border bg-white p-4 flex items-center gap-4">
-              <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+            <div key={m.id} className="rounded-lg border bg-card p-4 flex items-center gap-4">
+              <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
                 {m.role === 'CRIADOR' ? (
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 ) : (
-                  <UserIcon className="w-4 h-4 text-slate-500" />
+                  <UserIcon className="w-4 h-4 text-muted-foreground" />
                 )}
               </div>
               <div className="flex-1 min-w-0">

@@ -17,7 +17,7 @@ export default function IntegracoesPage() {
 
   if (!can('CRIADOR')) {
     return (
-      <div className="max-w-2xl mx-auto rounded-lg border bg-white p-10 text-center text-muted-foreground">
+      <div className="max-w-2xl mx-auto rounded-lg border bg-card p-10 text-center text-muted-foreground">
         Apenas o criador pode ver as integrações.
       </div>
     );
@@ -82,16 +82,16 @@ export default function IntegracoesPage() {
         {cards.map((c) => {
           const Icon = c.icon;
           return (
-            <div key={c.label} className="rounded-xl border bg-white p-5">
+            <div key={c.label} className="rounded-xl border bg-card p-5">
               <div className="flex items-center gap-3">
-                <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 text-slate-600">
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-muted text-muted-foreground">
                   <Icon className="w-5 h-5" />
                 </span>
                 <div>
                   <h2 className="font-semibold">{c.label}</h2>
                   <span
                     className={`inline-flex items-center gap-1 text-xs font-medium ${
-                      c.ok ? 'text-emerald-600' : 'text-slate-400'
+                      c.ok ? 'text-emerald-600' : 'text-muted-foreground'
                     }`}
                   >
                     {c.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}

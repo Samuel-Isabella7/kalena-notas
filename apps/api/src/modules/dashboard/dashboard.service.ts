@@ -34,7 +34,6 @@ export class DashboardService {
       fisicasTotal,
       valorMesAgg,
       atividadesRaw,
-      ultimasRaw,
     ] = await Promise.all([
       this.prisma.receivedNfe.count(),
       this.prisma.receivedNfe.count({ where: { resumoOnly: true } }),
@@ -54,10 +53,6 @@ export class DashboardService {
         orderBy: { createdAt: 'desc' },
         take: 6,
         include: { user: { select: { name: true } } },
-      }),
-      this.prisma.receivedNfe.findMany({
-        orderBy: { capturedAt: 'desc' },
-        take: 5,
       }),
     ]);
 
@@ -93,17 +88,6 @@ export class DashboardService {
         details: a.details,
         quem: a.user?.name ?? 'Sistema',
         createdAt: a.createdAt,
-      })),
-      ultimasRecebidas: ultimasRaw.map((r) => ({
-        id: r.id,
-        tipoDoc: r.tipoDoc,
-        emitenteNome: r.emitenteNome,
-        emitenteCnpj: r.emitenteCnpj,
-        numero: r.numero,
-        valor: r.valor != null ? Number(r.valor) : null,
-        dataEmissao: r.dataEmissao ? r.dataEmissao.toISOString().slice(0, 10) : null,
-        hasXml: r.hasXml,
-        capturedAt: r.capturedAt,
       })),
       integracoes: {
         sefaz: !!(this.config.get<string>('SEFAZ_SP_CNPJ') || this.config.get<string>('SEFAZ_RJ_CNPJ')),

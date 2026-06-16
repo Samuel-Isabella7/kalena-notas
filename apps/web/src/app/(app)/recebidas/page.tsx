@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck, X } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
 import { ReceivedNfe, ReceivedMeta } from '@/types';
 import { toast } from '@/hooks/use-toast';
@@ -34,26 +35,29 @@ interface SyncProgress {
   empresas: Array<{ empresa: string; novos?: number; novosCte?: number; erro?: string; cteErro?: string }>;
 }
 
-export default function RecebidasPage() {
+function RecebidasContent() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const q = searchParams.get('q') ?? '';
   const [manifesting, setManifesting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<string>('TODAS'); // UF da empresa
-  const [tipoF, setTipoF] = useState<string>('TODOS'); // tipo de documento
-  const [mesF, setMesF] = useState<string>('TODOS'); // emissão (YYYY-MM)
-  const [emitenteF, setEmitenteF] = useState<string>('TODOS'); // emitente (fornecedor)
+  const [filtro, setFiltro] = useState<string>(searchParams.get('uf') ?? 'TODAS'); // UF da empresa
+  const [tipoF, setTipoF] = useState<string>(searchParams.get('tipo') ?? 'TODOS'); // tipo de documento
+  const [mesF, setMesF] = useState<string>(searchParams.get('mes') ?? 'TODOS'); // emissão (YYYY-MM)
+  const [emitenteF, setEmitenteF] = useState<string>(searchParams.get('emitente') ?? 'TODOS'); // emitente
 
   const tipoLabel = (t: string) => (t === 'CTE' ? 'CT-e' : t === 'NFCE' ? 'NFC-e' : 'NF-e');
 
   // Lista filtrada NO SERVIDOR (o banco tem milhares de notas; não dá pra trazer todas)
   const { data: notas, isLoading } = useQuery<ReceivedNfe[]>({
-    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF],
+    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF, q],
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (filtro !== 'TODAS') params.uf = filtro;
       if (tipoF !== 'TODOS') params.tipo = tipoF;
       if (mesF !== 'TODOS') params.mes = mesF;
       if (emitenteF !== 'TODOS') params.emitente = emitenteF;
+      if (q) params.q = q;
       return (await api.get('/sefaz/received', { params })).data;
     },
   });
@@ -219,6 +223,14 @@ export default function RecebidasPage() {
                 .join(' · ') || 'iniciando...'}
             </p>
           )}
+          {q && (
+            <a
+              href="/recebidas"
+              className="inline-flex items-center gap-1 text-xs mt-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground hover:text-foreground"
+            >
+              Busca: <strong className="text-foreground">{q}</strong> <X className="w-3 h-3" />
+            </a>
+          )}
         </div>
 
         {/* Ações + filtros ao lado do botão Sincronizar */}
@@ -277,7 +289,7 @@ export default function RecebidasPage() {
               onClick={() => setFiltro(f)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-sm font-medium border transition-colors',
-                filtro === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-white hover:border-slate-400',
+                filtro === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-card hover:border-muted-foreground/40',
               )}
             >
               {f === 'TODAS' ? 'Todas' : f}
@@ -298,7 +310,7 @@ export default function RecebidasPage() {
               onClick={() => setTipoF(t)}
               className={cn(
                 'px-3 py-1 rounded-md text-xs font-medium border transition-colors',
-                tipoF === t ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-white hover:border-slate-400',
+                tipoF === t ? 'bg-emerald-700 text-white border-emerald-700' : 'bg-card hover:border-muted-foreground/40',
               )}
             >
               {t === 'TODOS' ? 'Todos os tipos' : tipoLabel(t)}
@@ -323,16 +335,16 @@ export default function RecebidasPage() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : visiveis.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-white p-12 text-center">
+        <div className="rounded-lg border border-dashed bg-card p-12 text-center">
           <Inbox className="w-10 h-10 mx-auto text-slate-300" />
           <p className="mt-3 text-sm text-muted-foreground">
             Nenhuma nota neste filtro. Clique em <strong>Sincronizar</strong> para buscar na SEFAZ.
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-white overflow-x-auto">
+        <div className="rounded-lg border bg-card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs text-muted-foreground">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Emissão</th>
                 <th className="px-4 py-2 font-medium">Tipo</th>
@@ -345,7 +357,7 @@ export default function RecebidasPage() {
             </thead>
             <tbody>
               {visiveis.map((n) => (
-                <tr key={n.id} className="border-t hover:bg-slate-50/60">
+                <tr key={n.id} className="border-t hover:bg-muted/50">
                   <td className="px-4 py-2 whitespace-nowrap">{formatDate(n.dataEmissao)}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <Badge variant={n.tipoDoc === 'CTE' ? 'warning' : 'info'}>{tipoLabel(n.tipoDoc)}</Badge>
@@ -402,5 +414,19 @@ export default function RecebidasPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function RecebidasPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <RecebidasContent />
+    </Suspense>
   );
 }

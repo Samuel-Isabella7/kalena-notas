@@ -37,7 +37,7 @@ export default function ConfiguracoesPage() {
 
   if (!can('CRIADOR')) {
     return (
-      <div className="max-w-2xl mx-auto rounded-lg border bg-white p-10 text-center text-muted-foreground">
+      <div className="max-w-2xl mx-auto rounded-lg border bg-card p-10 text-center text-muted-foreground">
         Apenas o criador pode acessar as configurações.
       </div>
     );
