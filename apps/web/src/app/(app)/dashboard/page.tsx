@@ -177,7 +177,7 @@ export default function DashboardPage() {
   const [page, setPage] = useState(1);
   useEffect(() => setPage(1), [mesSel, tab]);
 
-  const { data: tabela, isLoading: loadingTabela } = useQuery<ReceivedNfe[]>({
+  const { data: tabela, isLoading: loadingTabela } = useQuery<{ total: number; rows: ReceivedNfe[] }>({
     queryKey: ['dash-recebidas', mesSel, tab, page],
     queryFn: async () => {
       const params: Record<string, string> = {
@@ -190,17 +190,14 @@ export default function DashboardPage() {
     },
   });
 
-  const porTipo = data?.porTipoMes ?? [];
+  const rows = tabela?.rows ?? [];
   const tabs = [
     { key: 'TODAS', label: 'Todas' },
     { key: 'NFE', label: 'NF-e' },
     { key: 'CTE', label: 'CT-e' },
     { key: 'NFCE', label: 'NFC-e' },
   ];
-  const tabTotal =
-    tab === 'TODAS'
-      ? porTipo.reduce((s, t) => s + t.qtd, 0)
-      : porTipo.find((t) => t.tipo === tab)?.qtd ?? 0;
+  const tabTotal = tabela?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(tabTotal / PAGE_SIZE));
   const inicio = tabTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const fim = Math.min(page * PAGE_SIZE, tabTotal);
@@ -326,14 +323,14 @@ export default function DashboardPage() {
                         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground inline" />
                       </td>
                     </tr>
-                  ) : (tabela ?? []).length === 0 ? (
+                  ) : rows.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-muted-foreground">
                         Nenhuma nota neste mês.
                       </td>
                     </tr>
                   ) : (
-                    (tabela ?? []).map((n) => (
+                    rows.map((n) => (
                       <tr key={n.id} className="border-t hover:bg-muted/50">
                         <td className="px-5 py-2.5 whitespace-nowrap">
                           {n.dataEmissao ? n.dataEmissao.split('-').reverse().join('/') : '-'}

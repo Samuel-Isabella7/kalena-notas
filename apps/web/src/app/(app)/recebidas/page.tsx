@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck, X } from 'lucide-react';
+import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
 import { ReceivedNfe, ReceivedMeta } from '@/types';
 import { toast } from '@/hooks/use-toast';
@@ -28,6 +28,8 @@ function monthLabel(ym: string): string {
   return `${MONTH_NAMES[Number(m) - 1]}/${y}`;
 }
 
+const PAGE_SIZE = 50;
+
 interface SyncProgress {
   running: boolean;
   startedAt: string | null;
@@ -45,14 +47,18 @@ function RecebidasContent() {
   const [tipoF, setTipoF] = useState<string>(searchParams.get('tipo') ?? 'TODOS'); // tipo de documento
   const [mesF, setMesF] = useState<string>(searchParams.get('mes') ?? 'TODOS'); // emissão (YYYY-MM)
   const [emitenteF, setEmitenteF] = useState<string>(searchParams.get('emitente') ?? 'TODOS'); // emitente
+  const [page, setPage] = useState(1);
 
   const tipoLabel = (t: string) => (t === 'CTE' ? 'CT-e' : t === 'NFCE' ? 'NFC-e' : 'NF-e');
 
-  // Lista filtrada NO SERVIDOR (o banco tem milhares de notas; não dá pra trazer todas)
-  const { data: notas, isLoading } = useQuery<ReceivedNfe[]>({
-    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF, q],
+  // Reinicia a página ao mudar qualquer filtro
+  useEffect(() => setPage(1), [filtro, tipoF, mesF, emitenteF, q]);
+
+  // Lista paginada NO SERVIDOR (rápido: carrega 50 por vez, não milhares)
+  const { data: notas, isLoading } = useQuery<{ total: number; rows: ReceivedNfe[] }>({
+    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF, q, page],
     queryFn: async () => {
-      const params: Record<string, string> = {};
+      const params: Record<string, string> = { page: String(page), pageSize: String(PAGE_SIZE) };
       if (filtro !== 'TODAS') params.uf = filtro;
       if (tipoF !== 'TODOS') params.tipo = tipoF;
       if (mesF !== 'TODOS') params.mes = mesF;
@@ -121,8 +127,12 @@ function RecebidasContent() {
   const ufCount = (uf: string) => meta?.ufs.find((u) => u.uf === uf)?.qtd ?? 0;
   const tipoCount = (t: string) => meta?.tipos.find((x) => x.tipo === t)?.qtd ?? 0;
 
-  // O servidor já devolve filtrado — exibimos como veio.
-  const visiveis = notas ?? [];
+  // O servidor já devolve filtrado e paginado.
+  const visiveis = notas?.rows ?? [];
+  const filtTotal = notas?.total ?? 0; // total do filtro atual (todas as páginas)
+  const totalPages = Math.max(1, Math.ceil(filtTotal / PAGE_SIZE));
+  const inicio = filtTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const fim = Math.min(page * PAGE_SIZE, filtTotal);
   const resumoCount = meta?.manifestaveis ?? 0;
 
   const sync = async () => {
@@ -322,11 +332,11 @@ function RecebidasContent() {
         </div>
       )}
 
-      {/* Total real no banco + quantas estão sendo exibidas no filtro atual */}
-      {total > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {total.toLocaleString('pt-BR')} nota(s) no total · exibindo {visiveis.length.toLocaleString('pt-BR')}
-          {visiveis.length >= 5000 && ' (limite — use os filtros de mês/emitente para ver as demais)'}
+      {/* Total do filtro atual + página */}
+      {filtTotal > 0 && (
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {filtTotal.toLocaleString('pt-BR')} nota(s) no filtro atual · mostrando{' '}
+          {inicio.toLocaleString('pt-BR')} a {fim.toLocaleString('pt-BR')}
         </p>
       )}
 
@@ -411,6 +421,25 @@ function RecebidasContent() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Paginação */}
+      {filtTotal > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
+          <span className="tabular-nums">
+            Página {page} de {totalPages.toLocaleString('pt-BR')}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

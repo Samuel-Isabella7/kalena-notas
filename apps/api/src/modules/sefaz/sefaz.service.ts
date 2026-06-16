@@ -651,34 +651,40 @@ export class SefazService {
       ];
     }
 
-    // Paginação opcional (usada pelo Dashboard). Sem ela, mantém o comportamento atual.
+    // Paginação no servidor (rápido: nunca traz milhares de linhas de uma vez).
     const usePage = params.page != null && params.pageSize != null;
-    const rows = await this.prisma.receivedNfe.findMany({
-      where,
-      orderBy: { dataEmissao: 'desc' },
-      ...(usePage
-        ? { skip: Math.max(0, (params.page! - 1) * params.pageSize!), take: params.pageSize! }
-        : { take: params.limit ?? 5000 }),
-    });
+    const [total, rows] = await Promise.all([
+      this.prisma.receivedNfe.count({ where }),
+      this.prisma.receivedNfe.findMany({
+        where,
+        orderBy: { dataEmissao: 'desc' },
+        ...(usePage
+          ? { skip: Math.max(0, (params.page! - 1) * params.pageSize!), take: params.pageSize! }
+          : { take: params.limit ?? 5000 }),
+      }),
+    ]);
 
-    return rows.map((r) => ({
-      id: r.id,
-      empresaNome: r.empresaNome,
-      empresaCnpj: r.empresaCnpj,
-      empresaUf: r.empresaUf,
-      chave: r.chave,
-      tipoDoc: r.tipoDoc,
-      emitenteNome: r.emitenteNome,
-      emitenteCnpj: r.emitenteCnpj,
-      numero: r.numero,
-      serie: r.serie,
-      valor: r.valor != null ? Number(r.valor) : null,
-      dataEmissao: r.dataEmissao ? r.dataEmissao.toISOString().slice(0, 10) : null,
-      kind: r.kind,
-      driveLink: r.driveLink,
-      hasXml: r.hasXml,
-      capturedAt: r.capturedAt,
-    }));
+    return {
+      total,
+      rows: rows.map((r) => ({
+        id: r.id,
+        empresaNome: r.empresaNome,
+        empresaCnpj: r.empresaCnpj,
+        empresaUf: r.empresaUf,
+        chave: r.chave,
+        tipoDoc: r.tipoDoc,
+        emitenteNome: r.emitenteNome,
+        emitenteCnpj: r.emitenteCnpj,
+        numero: r.numero,
+        serie: r.serie,
+        valor: r.valor != null ? Number(r.valor) : null,
+        dataEmissao: r.dataEmissao ? r.dataEmissao.toISOString().slice(0, 10) : null,
+        kind: r.kind,
+        driveLink: r.driveLink,
+        hasXml: r.hasXml,
+        capturedAt: r.capturedAt,
+      })),
+    };
   }
 
   /** Empresas configuradas para o filtro do frontend. */
