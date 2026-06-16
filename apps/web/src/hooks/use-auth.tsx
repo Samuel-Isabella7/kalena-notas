@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCookie('knf_token', data.token);
       localStorage.setItem('knf_user', JSON.stringify(data.user));
       setUser(data.user);
-      router.push('/calendario');
+      router.push('/dashboard');
     },
     [router],
   );

@@ -99,6 +99,43 @@ export interface PhysicalNoteMeta {
   meses: string[];
 }
 
+export interface DashboardSummary {
+  totais: {
+    totalNotas: number;
+    recebidas: number;
+    anexadas: number;
+    fisicas: number;
+    pendentes: number;
+    processadasHoje: number;
+    anexadasMes: number;
+    valorMes: number;
+  };
+  porTipo: { tipo: string; qtd: number }[];
+  invoicesPorStatus: { status: string; qtd: number }[];
+  situacao: { label: string; value: number }[];
+  fluxo: { mes: string; recebidas: number; processadas: number }[];
+  atividades: {
+    id: string;
+    action: string;
+    entity: string | null;
+    details: any;
+    quem: string;
+    createdAt: string;
+  }[];
+  ultimasRecebidas: {
+    id: string;
+    tipoDoc: string;
+    emitenteNome: string | null;
+    emitenteCnpj: string | null;
+    numero: string | null;
+    valor: number | null;
+    dataEmissao: string | null;
+    hasXml: boolean;
+    capturedAt: string;
+  }[];
+  integracoes: { sefaz: boolean; omie: boolean; drive: boolean; ia: boolean };
+}
+
 export interface MonthSummary {
   month: number;
   name: string;

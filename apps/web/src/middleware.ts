@@ -17,7 +17,7 @@ export function middleware(req: NextRequest) {
   }
   if (token && pathname === '/login') {
     const url = req.nextUrl.clone();
-    url.pathname = '/calendario';
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
   return NextResponse.next();

@@ -14,6 +14,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { SefazModule } from './modules/sefaz/sefaz.module';
 import { PhysicalNotesModule } from './modules/physical-notes/physical-notes.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -34,6 +35,7 @@ import { BootstrapService } from './common/bootstrap.service';
     SettingsModule,
     SefazModule,
     PhysicalNotesModule,
+    DashboardModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
