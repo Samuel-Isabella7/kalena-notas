@@ -159,9 +159,7 @@ export default function NotasFisicasPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Notas físicas</h1>
-          <p className="text-sm text-muted-foreground">
-            Documentos em papel anexados manualmente (com nome e observação). Vão para o Google Drive.
-          </p>
+          <p className="text-sm text-muted-foreground">Anexe e consulte suas notas físicas.</p>
         </div>
 
         <div className="flex flex-wrap items-end gap-2">

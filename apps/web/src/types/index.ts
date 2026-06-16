@@ -101,19 +101,16 @@ export interface PhysicalNoteMeta {
 
 export interface DashboardSummary {
   periodoMes: string;
+  mesesDisponiveis: string[];
   totais: {
     totalNotas: number;
-    recebidas: number;
-    anexadas: number;
-    fisicas: number;
     pendentes: number;
-    processadasHoje: number;
-    anexadasMes: number;
+    processadas: number;
+    anexadas: number;
     valorMes: number;
   };
-  porTipo: { tipo: string; qtd: number }[];
-  invoicesPorStatus: { status: string; qtd: number }[];
   situacao: { label: string; value: number }[];
+  porTipoMes: { tipo: string; qtd: number }[];
   atividades: {
     id: string;
     action: string;

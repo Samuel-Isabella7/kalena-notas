@@ -12,75 +12,77 @@ export class DashboardService {
 
   async summary(mes?: string) {
     const now = new Date();
-    // Mês de referência (YYYY-MM) — padrão: mês atual. Afeta os cards "(mês)".
     const ref = mes && /^\d{4}-\d{2}$/.test(mes) ? mes : null;
     const refY = ref ? Number(ref.split('-')[0]) : now.getUTCFullYear();
     const refM = ref ? Number(ref.split('-')[1]) - 1 : now.getUTCMonth();
     const inicioMes = new Date(Date.UTC(refY, refM, 1));
     const fimMes = new Date(Date.UTC(refY, refM + 1, 1));
-    const inicioHoje = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const periodoMes = `${refY}-${String(refM + 1).padStart(2, '0')}`;
 
+    // Janelas por mês selecionado (recebidas: emissão; anexadas: dia; físicas: anexo)
+    const recWhere = { dataEmissao: { gte: inicioMes, lt: fimMes } };
+    const invWhere = { competenceDate: { gte: inicioMes, lt: fimMes } };
+    const fisWhere = { createdAt: { gte: inicioMes, lt: fimMes } };
+
     const [
-      recebidasTotal,
-      recebidasResumo,
-      recebidasPorTipo,
-      processadasHoje,
-      invoicesTotal,
-      invoicesPendentes,
-      invoicesPorStatus,
-      invoicesMes,
-      fisicasMes,
-      fisicasTotal,
-      valorMesAgg,
+      recTotal,
+      recResumo,
+      recPorTipo,
+      invTotal,
+      invPend,
+      fisTotal,
+      valorAgg,
       atividadesRaw,
+      mesesRec,
+      mesesInv,
+      mesesFis,
     ] = await Promise.all([
-      this.prisma.receivedNfe.count(),
-      this.prisma.receivedNfe.count({ where: { resumoOnly: true } }),
-      this.prisma.receivedNfe.groupBy({ by: ['tipoDoc'], _count: { _all: true } }),
-      this.prisma.receivedNfe.count({ where: { capturedAt: { gte: inicioHoje } } }),
-      this.prisma.invoice.count(),
-      this.prisma.invoice.count({ where: { status: InvoiceStatus.PENDENTE } }),
-      this.prisma.invoice.groupBy({ by: ['status'], _count: { _all: true } }),
-      this.prisma.invoice.count({ where: { createdAt: { gte: inicioMes, lt: fimMes } } }),
-      this.prisma.physicalNote.count({ where: { createdAt: { gte: inicioMes, lt: fimMes } } }),
-      this.prisma.physicalNote.count(),
-      this.prisma.receivedNfe.aggregate({
-        _sum: { valor: true },
-        where: { dataEmissao: { gte: inicioMes, lt: fimMes } },
-      }),
+      this.prisma.receivedNfe.count({ where: recWhere }),
+      this.prisma.receivedNfe.count({ where: { ...recWhere, resumoOnly: true } }),
+      this.prisma.receivedNfe.groupBy({ by: ['tipoDoc'], where: recWhere, _count: { _all: true } }),
+      this.prisma.invoice.count({ where: invWhere }),
+      this.prisma.invoice.count({ where: { ...invWhere, status: InvoiceStatus.PENDENTE } }),
+      this.prisma.physicalNote.count({ where: fisWhere }),
+      this.prisma.receivedNfe.aggregate({ _sum: { valor: true }, where: recWhere }),
       this.prisma.activityLog.findMany({
         orderBy: { createdAt: 'desc' },
         take: 6,
         include: { user: { select: { name: true } } },
       }),
+      this.prisma.$queryRaw<{ mes: string }[]>`
+        SELECT DISTINCT to_char(data_emissao, 'YYYY-MM') AS mes FROM received_nfe WHERE data_emissao IS NOT NULL`,
+      this.prisma.$queryRaw<{ mes: string }[]>`
+        SELECT DISTINCT to_char(competence_date, 'YYYY-MM') AS mes FROM invoices`,
+      this.prisma.$queryRaw<{ mes: string }[]>`
+        SELECT DISTINCT to_char(created_at, 'YYYY-MM') AS mes FROM physical_notes`,
     ]);
 
-    const recebidasComXml = recebidasTotal - recebidasResumo;
-    const totalNotas = recebidasTotal + invoicesTotal + fisicasTotal;
+    const recComXml = recTotal - recResumo;
+    const totalNotas = recTotal + invTotal + fisTotal;
+
+    // Meses existentes no sistema (união), do mais recente para o mais antigo.
+    const setMeses = new Set<string>();
+    for (const r of [...mesesRec, ...mesesInv, ...mesesFis]) if (r.mes) setMeses.add(r.mes);
+    setMeses.add(periodoMes); // garante o mês selecionado na lista
+    const mesesDisponiveis = Array.from(setMeses).sort().reverse();
 
     return {
       periodoMes,
+      mesesDisponiveis,
       totais: {
         totalNotas,
-        recebidas: recebidasTotal,
-        anexadas: invoicesTotal,
-        fisicas: fisicasTotal,
-        pendentes: recebidasResumo + invoicesPendentes,
-        processadasHoje,
-        // Anexadas no mês = notas anexadas (Invoice) + notas físicas no mês
-        anexadasMes: invoicesMes + fisicasMes,
-        valorMes: valorMesAgg._sum.valor ? Number(valorMesAgg._sum.valor) : 0,
+        pendentes: recResumo + invPend,
+        processadas: recComXml,
+        anexadas: invTotal + fisTotal,
+        valorMes: valorAgg._sum.valor ? Number(valorAgg._sum.valor) : 0,
       },
-      porTipo: recebidasPorTipo.map((t) => ({ tipo: t.tipoDoc, qtd: t._count._all })),
-      invoicesPorStatus: invoicesPorStatus.map((s) => ({ status: s.status, qtd: s._count._all })),
-      // Donut "Situação das notas" — partição limpa (soma = total de notas)
       situacao: [
-        { label: 'Processadas', value: recebidasComXml },
-        { label: 'Pendentes', value: recebidasResumo },
-        { label: 'Anexadas', value: invoicesTotal },
-        { label: 'Notas físicas', value: fisicasTotal },
+        { label: 'Processadas', value: recComXml },
+        { label: 'Pendentes', value: recResumo },
+        { label: 'Anexadas', value: invTotal },
+        { label: 'Notas físicas', value: fisTotal },
       ],
+      porTipoMes: recPorTipo.map((t) => ({ tipo: t.tipoDoc, qtd: t._count._all })),
       atividades: atividadesRaw.map((a) => ({
         id: a.id,
         action: a.action,
