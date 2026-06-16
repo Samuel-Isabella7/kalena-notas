@@ -100,6 +100,7 @@ export interface PhysicalNoteMeta {
 }
 
 export interface DashboardSummary {
+  periodoMes: string;
   totais: {
     totalNotas: number;
     recebidas: number;
@@ -113,7 +114,6 @@ export interface DashboardSummary {
   porTipo: { tipo: string; qtd: number }[];
   invoicesPorStatus: { status: string; qtd: number }[];
   situacao: { label: string; value: number }[];
-  fluxo: { mes: string; recebidas: number; processadas: number }[];
   atividades: {
     id: string;
     action: string;

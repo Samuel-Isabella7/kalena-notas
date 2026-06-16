@@ -10,10 +10,16 @@ export class DashboardService {
     private config: ConfigService,
   ) {}
 
-  async summary() {
+  async summary(mes?: string) {
     const now = new Date();
-    const inicioMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    // Mês de referência (YYYY-MM) — padrão: mês atual. Afeta os cards "(mês)".
+    const ref = mes && /^\d{4}-\d{2}$/.test(mes) ? mes : null;
+    const refY = ref ? Number(ref.split('-')[0]) : now.getUTCFullYear();
+    const refM = ref ? Number(ref.split('-')[1]) - 1 : now.getUTCMonth();
+    const inicioMes = new Date(Date.UTC(refY, refM, 1));
+    const fimMes = new Date(Date.UTC(refY, refM + 1, 1));
     const inicioHoje = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const periodoMes = `${refY}-${String(refM + 1).padStart(2, '0')}`;
 
     const [
       recebidasTotal,
@@ -23,10 +29,10 @@ export class DashboardService {
       invoicesTotal,
       invoicesPendentes,
       invoicesPorStatus,
-      anexadasMes,
+      invoicesMes,
+      fisicasMes,
       fisicasTotal,
       valorMesAgg,
-      fluxoRaw,
       atividadesRaw,
       ultimasRaw,
     ] = await Promise.all([
@@ -37,23 +43,16 @@ export class DashboardService {
       this.prisma.invoice.count(),
       this.prisma.invoice.count({ where: { status: InvoiceStatus.PENDENTE } }),
       this.prisma.invoice.groupBy({ by: ['status'], _count: { _all: true } }),
-      this.prisma.invoice.count({ where: { createdAt: { gte: inicioMes } } }),
+      this.prisma.invoice.count({ where: { createdAt: { gte: inicioMes, lt: fimMes } } }),
+      this.prisma.physicalNote.count({ where: { createdAt: { gte: inicioMes, lt: fimMes } } }),
       this.prisma.physicalNote.count(),
       this.prisma.receivedNfe.aggregate({
         _sum: { valor: true },
-        where: { dataEmissao: { gte: inicioMes } },
+        where: { dataEmissao: { gte: inicioMes, lt: fimMes } },
       }),
-      this.prisma.$queryRaw<{ mes: string; total: bigint; com_xml: bigint }[]>`
-        SELECT to_char(data_emissao, 'YYYY-MM') AS mes,
-               COUNT(*) AS total,
-               SUM(CASE WHEN has_xml THEN 1 ELSE 0 END) AS com_xml
-        FROM received_nfe
-        WHERE data_emissao >= date_trunc('month', CURRENT_DATE) - interval '5 months'
-        GROUP BY 1
-        ORDER BY 1`,
       this.prisma.activityLog.findMany({
         orderBy: { createdAt: 'desc' },
-        take: 8,
+        take: 6,
         include: { user: { select: { name: true } } },
       }),
       this.prisma.receivedNfe.findMany({
@@ -66,6 +65,7 @@ export class DashboardService {
     const totalNotas = recebidasTotal + invoicesTotal + fisicasTotal;
 
     return {
+      periodoMes,
       totais: {
         totalNotas,
         recebidas: recebidasTotal,
@@ -73,24 +73,19 @@ export class DashboardService {
         fisicas: fisicasTotal,
         pendentes: recebidasResumo + invoicesPendentes,
         processadasHoje,
-        anexadasMes,
+        // Anexadas no mês = notas anexadas (Invoice) + notas físicas no mês
+        anexadasMes: invoicesMes + fisicasMes,
         valorMes: valorMesAgg._sum.valor ? Number(valorMesAgg._sum.valor) : 0,
       },
       porTipo: recebidasPorTipo.map((t) => ({ tipo: t.tipoDoc, qtd: t._count._all })),
       invoicesPorStatus: invoicesPorStatus.map((s) => ({ status: s.status, qtd: s._count._all })),
-      // Donut "Situação das notas"
+      // Donut "Situação das notas" — partição limpa (soma = total de notas)
       situacao: [
         { label: 'Processadas', value: recebidasComXml },
-        { label: 'Pendentes', value: recebidasResumo + invoicesPendentes },
+        { label: 'Pendentes', value: recebidasResumo },
         { label: 'Anexadas', value: invoicesTotal },
         { label: 'Notas físicas', value: fisicasTotal },
       ],
-      // Fluxo mensal (últimos 6 meses)
-      fluxo: fluxoRaw.map((r) => ({
-        mes: r.mes,
-        recebidas: Number(r.total),
-        processadas: Number(r.com_xml),
-      })),
       atividades: atividadesRaw.map((a) => ({
         id: a.id,
         action: a.action,

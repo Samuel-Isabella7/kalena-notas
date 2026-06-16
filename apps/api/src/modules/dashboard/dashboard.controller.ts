@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 
@@ -8,9 +8,9 @@ import { DashboardService } from './dashboard.service';
 export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
-  // Visível a todos os perfis autenticados (cada card usa dados globais).
+  // Visível a todos os perfis autenticados. ?mes=YYYY-MM filtra os cards "(mês)".
   @Get()
-  summary() {
-    return this.dashboard.summary();
+  summary(@Query('mes') mes?: string) {
+    return this.dashboard.summary(mes);
   }
 }
