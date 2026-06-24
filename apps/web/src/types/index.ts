@@ -74,6 +74,7 @@ export interface UploadResult {
 export interface ReceivedMeta {
   total: number;
   manifestaveis: number;
+  comXml: number;
   ufs: { uf: string; qtd: number }[];
   tipos: { tipo: string; qtd: number }[];
   emitentes: string[];

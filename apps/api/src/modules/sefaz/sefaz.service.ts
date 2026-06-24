@@ -622,6 +622,9 @@ export class SefazService {
       mes?: string; // YYYY-MM (por emissão)
       emitente?: string;
       q?: string; // busca por emitente / número / CNPJ
+      status?: string; // PENDENTE | COM_XML | RESUMO
+      sort?: string; // dataEmissao | emitenteNome | numero | valor
+      dir?: string; // asc | desc
       limit?: number;
       page?: number; // paginação opcional (1-based)
       pageSize?: number;
@@ -639,6 +642,15 @@ export class SefazService {
         lt: new Date(Date.UTC(y, m, 1)),
       };
     }
+    // Situação: COM_XML = manifestada; PENDENTE = NF-e/NFC-e sem XML; RESUMO = CT-e sem XML
+    if (params.status === 'COM_XML') where.hasXml = true;
+    else if (params.status === 'PENDENTE') {
+      where.hasXml = false;
+      where.tipoDoc = { not: 'CTE' };
+    } else if (params.status === 'RESUMO') {
+      where.hasXml = false;
+      where.tipoDoc = 'CTE';
+    }
     const q = (params.q || '').trim();
     if (q) {
       where.OR = [
@@ -649,13 +661,20 @@ export class SefazService {
       ];
     }
 
+    // Ordenação (whitelist) — default emissão desc
+    const sortable = ['dataEmissao', 'emitenteNome', 'numero', 'valor'];
+    const sortKey = sortable.includes(params.sort || '') ? params.sort! : 'dataEmissao';
+    const sortDir = params.dir === 'asc' ? 'asc' : 'desc';
+    const orderBy = { [sortKey]: sortDir } as Prisma.ReceivedNfeOrderByWithRelationInput;
+
     // Paginação no servidor (rápido: nunca traz milhares de linhas de uma vez).
     const usePage = params.page != null && params.pageSize != null;
-    const [total, rows] = await Promise.all([
+    const [total, somaAgg, rows] = await Promise.all([
       this.prisma.receivedNfe.count({ where }),
+      this.prisma.receivedNfe.aggregate({ _sum: { valor: true }, where }),
       this.prisma.receivedNfe.findMany({
         where,
-        orderBy: { dataEmissao: 'desc' },
+        orderBy,
         ...(usePage
           ? { skip: Math.max(0, (params.page! - 1) * params.pageSize!), take: params.pageSize! }
           : { take: params.limit ?? 5000 }),
@@ -664,6 +683,7 @@ export class SefazService {
 
     return {
       total,
+      somaValor: somaAgg._sum.valor ? Number(somaAgg._sum.valor) : 0,
       rows: rows.map((r) => ({
         id: r.id,
         empresaNome: r.empresaNome,
@@ -695,7 +715,7 @@ export class SefazService {
    * (não só as exibidas). Alimenta os dropdowns de mês/emitente/UF/tipo.
    */
   async receivedMeta() {
-    const [total, porUf, porTipo, emitentesRows, mesesRaw, manifestaveis] = await Promise.all([
+    const [total, porUf, porTipo, emitentesRows, mesesRaw, manifestaveis, comXml] = await Promise.all([
       this.prisma.receivedNfe.count(),
       this.prisma.receivedNfe.groupBy({ by: ['empresaUf'], _count: { _all: true } }),
       this.prisma.receivedNfe.groupBy({ by: ['tipoDoc'], _count: { _all: true } }),
@@ -710,11 +730,13 @@ export class SefazService {
         WHERE data_emissao IS NOT NULL
         ORDER BY mes DESC`,
       this.prisma.receivedNfe.count({ where: { resumoOnly: true, tipoDoc: { not: 'CTE' } } }),
+      this.prisma.receivedNfe.count({ where: { hasXml: true } }),
     ]);
 
     return {
       total,
       manifestaveis,
+      comXml,
       ufs: porUf
         .map((u) => ({ uf: u.empresaUf, qtd: u._count._all }))
         .filter((u) => u.uf)
@@ -1036,5 +1058,24 @@ export class SefazService {
       await new Promise((res) => setTimeout(res, 800));
     }
     return { total: pendentes.length, manifestadas, comXml, erros };
+  }
+
+  /** Manifesta uma lista específica de notas (seleção em massa). */
+  async manifestarLote(ids: string[]) {
+    const lista = Array.isArray(ids) ? ids.filter(Boolean) : [];
+    let manifestadas = 0;
+    let comXml = 0;
+    const erros: Array<{ id: string; erro: string }> = [];
+    for (const id of lista) {
+      try {
+        const r = await this.manifestarNota(id);
+        manifestadas++;
+        if (r.hasXml) comXml++;
+      } catch (e: any) {
+        erros.push({ id, erro: e?.message || 'erro' });
+      }
+      await new Promise((res) => setTimeout(res, 800));
+    }
+    return { total: lista.length, manifestadas, comXml, erros };
   }
 }

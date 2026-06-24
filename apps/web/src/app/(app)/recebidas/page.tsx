@@ -60,22 +60,35 @@ function RecebidasContent() {
   const [tipoF, setTipoF] = useState<string>(searchParams.get('tipo') ?? 'TODOS'); // tipo de documento
   const [mesF, setMesF] = useState<string>(searchParams.get('mes') ?? 'TODOS'); // emissão (YYYY-MM)
   const [emitenteF, setEmitenteF] = useState<string>(searchParams.get('emitente') ?? 'TODOS'); // emitente
+  const [status, setStatus] = useState<string>(searchParams.get('status') ?? 'TODAS'); // situação
+  const [sortKey, setSortKey] = useState<string>('dataEmissao');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
 
   const tipoLabel = (t: string) => (t === 'CTE' ? 'CT-e' : t === 'NFCE' ? 'NFC-e' : 'NF-e');
 
-  // Reinicia a página ao mudar qualquer filtro
-  useEffect(() => setPage(1), [filtro, tipoF, mesF, emitenteF, q]);
+  // Reinicia a página e limpa a seleção ao mudar qualquer filtro/ordenação
+  useEffect(() => {
+    setPage(1);
+    setSelected(new Set());
+  }, [filtro, tipoF, mesF, emitenteF, q, status, sortKey, sortDir]);
 
   // Lista paginada NO SERVIDOR (rápido: carrega 50 por vez, não milhares)
-  const { data: notas, isLoading } = useQuery<{ total: number; rows: ReceivedNfe[] }>({
-    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF, q, page],
+  const { data: notas, isLoading } = useQuery<{ total: number; somaValor: number; rows: ReceivedNfe[] }>({
+    queryKey: ['received-nfe', filtro, tipoF, mesF, emitenteF, q, status, sortKey, sortDir, page],
     queryFn: async () => {
-      const params: Record<string, string> = { page: String(page), pageSize: String(PAGE_SIZE) };
+      const params: Record<string, string> = {
+        page: String(page),
+        pageSize: String(PAGE_SIZE),
+        sort: sortKey,
+        dir: sortDir,
+      };
       if (filtro !== 'TODAS') params.uf = filtro;
       if (tipoF !== 'TODOS') params.tipo = tipoF;
       if (mesF !== 'TODOS') params.mes = mesF;
       if (emitenteF !== 'TODOS') params.emitente = emitenteF;
+      if (status !== 'TODAS') params.status = status;
       if (q) params.q = q;
       return (await api.get('/sefaz/received', { params })).data;
     },
@@ -143,10 +156,61 @@ function RecebidasContent() {
   // O servidor já devolve filtrado e paginado.
   const visiveis = notas?.rows ?? [];
   const filtTotal = notas?.total ?? 0; // total do filtro atual (todas as páginas)
+  const somaValor = notas?.somaValor ?? 0;
   const totalPages = Math.max(1, Math.ceil(filtTotal / PAGE_SIZE));
   const inicio = filtTotal === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const fim = Math.min(page * PAGE_SIZE, filtTotal);
   const resumoCount = meta?.manifestaveis ?? 0;
+
+  // Ordenação por coluna
+  const toggleSort = (key: string) => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else {
+      setSortKey(key);
+      setSortDir(key === 'emitenteNome' || key === 'numero' ? 'asc' : 'desc');
+    }
+  };
+  const sortArrow = (key: string) => (sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '');
+
+  // Seleção em massa (apenas notas manifestáveis: NF-e/NFC-e sem XML)
+  const manifestaveisPagina = visiveis.filter((n) => !n.hasXml && n.tipoDoc !== 'CTE');
+  const allPageSelected =
+    manifestaveisPagina.length > 0 && manifestaveisPagina.every((n) => selected.has(n.id));
+  const toggleSel = (id: string) =>
+    setSelected((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  const toggleSelectAll = () =>
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (allPageSelected) manifestaveisPagina.forEach((n) => s.delete(n.id));
+      else manifestaveisPagina.forEach((n) => s.add(n.id));
+      return s;
+    });
+
+  const manifestarSelecionadas = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!confirm(`Manifestar (Ciência da Operação) ${ids.length} nota(s) selecionada(s)?`)) return;
+    setManifesting(true);
+    try {
+      const { data } = await api.post('/sefaz/manifestar-lote', { ids });
+      toast({
+        title: 'Manifestação concluída',
+        description: `${data.manifestadas}/${data.total} manifestada(s), ${data.comXml} com XML${data.erros?.length ? ` · ${data.erros.length} erro(s)` : ''}`,
+        variant: 'success',
+      });
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ['received-nfe'] });
+      queryClient.invalidateQueries({ queryKey: ['received-meta'] });
+    } catch (e) {
+      toast({ title: 'Erro ao manifestar', description: apiError(e), variant: 'destructive' });
+    } finally {
+      setManifesting(false);
+    }
+  };
 
   const sync = async () => {
     try {
@@ -323,6 +387,64 @@ function RecebidasContent() {
         )}
       </div>
 
+      {/* Cards-resumo */}
+      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-[10px] border bg-card p-4">
+          <p className="text-xs text-muted-foreground">Notas no filtro</p>
+          <p className="text-xl font-bold tabular-nums">{filtTotal.toLocaleString('pt-BR')}</p>
+        </div>
+        <div className="rounded-[10px] border bg-card p-4">
+          <p className="text-xs text-muted-foreground">Valor somado (filtro)</p>
+          <p className="text-xl font-bold tabular-nums">{formatCurrency(somaValor)}</p>
+        </div>
+        <button
+          onClick={() => setStatus(status === 'PENDENTE' ? 'TODAS' : 'PENDENTE')}
+          className={cn(
+            'rounded-[10px] border bg-card p-4 text-left transition-colors hover:border-amber-500/50',
+            status === 'PENDENTE' && 'border-amber-500 ring-1 ring-amber-500/40',
+          )}
+        >
+          <p className="text-xs text-muted-foreground">Pendentes de manifestação</p>
+          <p className="text-xl font-bold tabular-nums text-amber-600">
+            {(meta?.manifestaveis ?? 0).toLocaleString('pt-BR')}
+          </p>
+        </button>
+        <button
+          onClick={() => setStatus(status === 'COM_XML' ? 'TODAS' : 'COM_XML')}
+          className={cn(
+            'rounded-[10px] border bg-card p-4 text-left transition-colors hover:border-emerald-500/50',
+            status === 'COM_XML' && 'border-emerald-500 ring-1 ring-emerald-500/40',
+          )}
+        >
+          <p className="text-xs text-muted-foreground">Com XML completo</p>
+          <p className="text-xl font-bold tabular-nums text-emerald-600">
+            {(meta?.comXml ?? 0).toLocaleString('pt-BR')}
+          </p>
+        </button>
+      </div>
+
+      {/* Filtro por situação */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Situação</span>
+        {[
+          { k: 'TODAS', l: 'Todas' },
+          { k: 'PENDENTE', l: 'Pendentes' },
+          { k: 'COM_XML', l: 'Com XML' },
+          { k: 'RESUMO', l: 'Resumo (CT-e)' },
+        ].map((s) => (
+          <button
+            key={s.k}
+            onClick={() => setStatus(s.k)}
+            className={cn(
+              'px-3 py-1 rounded-md text-xs font-medium border transition-colors',
+              status === s.k ? 'bg-slate-900 text-white border-slate-900' : 'bg-card hover:border-muted-foreground/40',
+            )}
+          >
+            {s.l}
+          </button>
+        ))}
+      </div>
+
       {/* Filtro por empresa */}
       {ufs.length > 0 && (
         <div className="flex gap-2 flex-wrap">
@@ -373,6 +495,24 @@ function RecebidasContent() {
         </p>
       )}
 
+      {/* Barra de ações em massa */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-500/40 bg-card p-3 flex-wrap">
+          <span className="text-sm font-medium">{selected.size} nota(s) selecionada(s)</span>
+          <Button
+            onClick={manifestarSelecionadas}
+            disabled={manifesting}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {manifesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
+            Manifestar selecionadas
+          </Button>
+          <Button variant="outline" onClick={() => setSelected(new Set())}>
+            Limpar
+          </Button>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -389,19 +529,52 @@ function RecebidasContent() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
-                <th className="px-4 py-2 font-medium">Emissão</th>
+                <th className="px-3 py-2 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={toggleSelectAll}
+                    disabled={manifestaveisPagina.length === 0}
+                    title="Selecionar manifestáveis desta página"
+                    className="w-4 h-4 accent-emerald-600 align-middle"
+                  />
+                </th>
+                <th className="px-4 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort('dataEmissao')}>
+                  Emissão{sortArrow('dataEmissao')}
+                </th>
                 <th className="px-4 py-2 font-medium">Tipo</th>
-                <th className="px-4 py-2 font-medium">Emitente</th>
-                <th className="px-4 py-2 font-medium">Nº</th>
-                <th className="px-4 py-2 font-medium">Valor</th>
+                <th className="px-4 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort('emitenteNome')}>
+                  Emitente{sortArrow('emitenteNome')}
+                </th>
+                <th className="px-4 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort('numero')}>
+                  Nº{sortArrow('numero')}
+                </th>
+                <th className="px-4 py-2 font-medium cursor-pointer select-none" onClick={() => toggleSort('valor')}>
+                  Valor{sortArrow('valor')}
+                </th>
                 <th className="px-4 py-2 font-medium">Empresa</th>
                 <th className="px-4 py-2 font-medium">Manifestação</th>
                 <th className="px-4 py-2 font-medium">Documentos</th>
               </tr>
             </thead>
             <tbody>
-              {visiveis.map((n) => (
-                <tr key={n.id} className="border-t hover:bg-muted/50">
+              {visiveis.map((n) => {
+                const manifestavel = !n.hasXml && n.tipoDoc !== 'CTE';
+                return (
+                <tr
+                  key={n.id}
+                  className={cn('border-t hover:bg-muted/50', selected.has(n.id) && 'bg-emerald-500/10')}
+                >
+                  <td className="px-3 py-2 w-10">
+                    {manifestavel && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(n.id)}
+                        onChange={() => toggleSel(n.id)}
+                        className="w-4 h-4 accent-emerald-600 align-middle"
+                      />
+                    )}
+                  </td>
                   <td className="px-4 py-2 whitespace-nowrap">{formatDate(n.dataEmissao)}</td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <Badge variant={n.tipoDoc === 'CTE' ? 'warning' : 'info'}>{tipoLabel(n.tipoDoc)}</Badge>
@@ -467,7 +640,8 @@ function RecebidasContent() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

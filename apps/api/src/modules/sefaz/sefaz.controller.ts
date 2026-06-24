@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Response } from 'express';
 import { Role } from '@prisma/client';
@@ -62,6 +62,9 @@ export class SefazController {
     @Query('mes') mes?: string,
     @Query('emitente') emitente?: string,
     @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('sort') sort?: string,
+    @Query('dir') dir?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -72,6 +75,9 @@ export class SefazController {
       mes,
       emitente,
       q,
+      status,
+      sort,
+      dir,
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
@@ -80,6 +86,11 @@ export class SefazController {
   @Post('manifestar-todas')
   manifestarTodas() {
     return this.sefaz.manifestarTodas();
+  }
+
+  @Post('manifestar-lote')
+  manifestarLote(@Body('ids') ids: string[]) {
+    return this.sefaz.manifestarLote(ids);
   }
 
   @Post('received/:id/manifestar')
