@@ -30,6 +30,7 @@ export class DashboardService {
       recPorTipo,
       invTotal,
       invPend,
+      invErros,
       fisTotal,
       valorAgg,
       atividadesRaw,
@@ -42,6 +43,7 @@ export class DashboardService {
       this.prisma.receivedNfe.groupBy({ by: ['tipoDoc'], where: recWhere, _count: { _all: true } }),
       this.prisma.invoice.count({ where: invWhere }),
       this.prisma.invoice.count({ where: { ...invWhere, status: InvoiceStatus.PENDENTE } }),
+      this.prisma.invoice.count({ where: { ...invWhere, status: InvoiceStatus.ERRO } }),
       this.prisma.physicalNote.count({ where: fisWhere }),
       this.prisma.receivedNfe.aggregate({ _sum: { valor: true }, where: recWhere }),
       this.prisma.activityLog.findMany({
@@ -75,6 +77,7 @@ export class DashboardService {
         processadas: recComXml,
         anexadas: invTotal + fisTotal,
         valorMes: valorAgg._sum.valor ? Number(valorAgg._sum.valor) : 0,
+        errosOmie: invErros,
       },
       situacao: [
         { label: 'Processadas', value: recComXml },

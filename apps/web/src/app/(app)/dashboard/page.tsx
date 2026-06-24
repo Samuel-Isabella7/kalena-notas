@@ -11,6 +11,11 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
+  BadgeCheck,
+  AlertTriangle,
+  LogIn,
+  Pencil,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { DashboardSummary, ReceivedNfe } from '@/types';
@@ -60,6 +65,17 @@ function actionLabel(action: string): string {
     PHYSICAL_NOTE_DELETE: 'Nota física excluída',
   };
   return map[action] ?? action;
+}
+
+function activityIcon(action: string): { Icon: React.ComponentType<{ className?: string }>; color: string; bg: string } {
+  if (action === 'INVOICE_LAUNCH') return { Icon: CreditCard, color: '#2563eb', bg: 'rgba(37,99,235,0.14)' };
+  if (action.includes('MANIFEST')) return { Icon: BadgeCheck, color: '#059669', bg: 'rgba(5,150,105,0.14)' };
+  if (action === 'INVOICE_DELETE' || action === 'PHYSICAL_NOTE_DELETE')
+    return { Icon: AlertTriangle, color: '#e11d48', bg: 'rgba(225,29,48,0.14)' };
+  if (action.endsWith('_UPLOAD')) return { Icon: Paperclip, color: '#0d9488', bg: 'rgba(13,148,136,0.14)' };
+  if (action === 'LOGIN') return { Icon: LogIn, color: '#94a3b8', bg: 'rgba(148,163,184,0.18)' };
+  if (action.endsWith('_UPDATE')) return { Icon: Pencil, color: '#64748b', bg: 'rgba(100,116,139,0.18)' };
+  return { Icon: FileText, color: '#64748b', bg: 'rgba(100,116,139,0.18)' };
 }
 
 /** Data/hora correta e curta: "16/06 09:30". */
@@ -131,6 +147,7 @@ function KpiCard({
   label,
   value,
   sub,
+  href,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   bg: string;
@@ -138,9 +155,10 @@ function KpiCard({
   label: string;
   value: string;
   sub?: string;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm min-w-0">
+  const inner = (
+    <>
       <span
         className="inline-flex items-center justify-center w-10 h-10 rounded-lg"
         style={{ backgroundColor: bg, color: fg }}
@@ -150,8 +168,17 @@ function KpiCard({
       <p className="text-xs text-muted-foreground mt-3 truncate">{label}</p>
       <p className="text-xl font-bold tracking-tight tabular-nums truncate">{value}</p>
       {sub && <p className="text-xs text-muted-foreground mt-1 truncate">{sub}</p>}
-    </div>
+    </>
   );
+  const cls = 'rounded-xl border bg-card p-4 shadow-sm min-w-0 block';
+  if (href) {
+    return (
+      <Link href={href} className={`${cls} transition-colors hover:border-muted-foreground/40`}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={cls}>{inner}</div>;
 }
 
 export default function DashboardPage() {
@@ -175,6 +202,7 @@ export default function DashboardPage() {
   // Tabela: abas por tipo + paginação (no servidor), do mês selecionado
   const [tab, setTab] = useState('TODAS');
   const [page, setPage] = useState(1);
+  const [soFiscais, setSoFiscais] = useState(false);
   useEffect(() => setPage(1), [mesSel, tab]);
 
   const { data: tabela, isLoading: loadingTabela } = useQuery<{ total: number; rows: ReceivedNfe[] }>({
@@ -237,18 +265,43 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
+          {/* Faixa "Requer atenção" */}
+          {(data.totais.pendentes > 0 || data.totais.errosOmie > 0) && (
+            <div className="rounded-lg border border-l-4 border-l-amber-500 bg-card p-3.5 flex items-center gap-4 flex-wrap">
+              <span className="text-amber-500 font-bold text-sm">⚠ Requer atenção</span>
+              {data.totais.pendentes > 0 && (
+                <Link
+                  href="/recebidas?status=PENDENTE"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-amber-500/12 border border-amber-500/35 text-amber-600 hover:bg-amber-500/20"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  {data.totais.pendentes.toLocaleString('pt-BR')} pendente(s) de manifestação/lançamento
+                </Link>
+              )}
+              {data.totais.errosOmie > 0 && (
+                <Link
+                  href="/calendario"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-rose-500/12 border border-rose-500/35 text-rose-600 hover:bg-rose-500/20"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  {data.totais.errosOmie.toLocaleString('pt-BR')} com erro na Omie
+                </Link>
+              )}
+            </div>
+          )}
+
           {/* KPIs (do mês selecionado) */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <KpiCard icon={FileText} bg="#ede9fe" fg="#7c3aed" label="Total de notas"
-              value={data.totais.totalNotas.toLocaleString('pt-BR')} sub={`Emitidas em ${periodoLabel}`} />
+              value={data.totais.totalNotas.toLocaleString('pt-BR')} sub={`Emitidas em ${periodoLabel}`} href="/recebidas" />
             <KpiCard icon={Clock} bg="#fef3c7" fg="#d97706" label="Pendentes"
-              value={data.totais.pendentes.toLocaleString('pt-BR')} sub="Manifestação / lançamento" />
+              value={data.totais.pendentes.toLocaleString('pt-BR')} sub="Manifestação / lançamento" href="/recebidas?status=PENDENTE" />
             <KpiCard icon={CheckCircle2} bg="#d1fae5" fg="#059669" label="Processadas"
-              value={data.totais.processadas.toLocaleString('pt-BR')} sub="Com XML no mês" />
+              value={data.totais.processadas.toLocaleString('pt-BR')} sub="Com XML no mês" href="/recebidas?status=COM_XML" />
             <KpiCard icon={DollarSign} bg="#dbeafe" fg="#2563eb" label="Valor total (mês)"
               value={formatCurrency(data.totais.valorMes)} sub={periodoLabel} />
             <KpiCard icon={Paperclip} bg="#ccfbf1" fg="#0d9488" label="Anexadas (mês)"
-              value={data.totais.anexadas.toLocaleString('pt-BR')} sub="Notas + notas físicas" />
+              value={data.totais.anexadas.toLocaleString('pt-BR')} sub="Notas + notas físicas" href="/notas-fisicas" />
           </div>
 
           {/* Situação + Atividades */}
@@ -259,24 +312,52 @@ export default function DashboardPage() {
             </div>
 
             <div className="rounded-xl border bg-card p-5 shadow-sm">
-              <h2 className="font-semibold mb-2">Atividades recentes</h2>
-              {data.atividades.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma atividade ainda.</p>
-              ) : (
-                <ul className="divide-y">
-                  {data.atividades.map((a) => (
-                    <li key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{actionLabel(a.action)}</p>
-                        <p className="text-xs text-muted-foreground truncate">{a.quem}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
-                        {dateTimeShort(a.createdAt)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                <h2 className="font-semibold">Atividades recentes</h2>
+                <div className="inline-flex bg-muted rounded-lg p-[3px] text-xs">
+                  <button
+                    onClick={() => setSoFiscais(false)}
+                    className={`px-2.5 py-1 rounded-md font-medium ${!soFiscais ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
+                  >
+                    Tudo
+                  </button>
+                  <button
+                    onClick={() => setSoFiscais(true)}
+                    className={`px-2.5 py-1 rounded-md font-medium ${soFiscais ? 'bg-foreground text-background' : 'text-muted-foreground'}`}
+                  >
+                    Só eventos fiscais
+                  </button>
+                </div>
+              </div>
+              {(() => {
+                const lista = data.atividades.filter((a) => !soFiscais || a.action !== 'LOGIN');
+                if (lista.length === 0)
+                  return <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma atividade.</p>;
+                return (
+                  <ul className="divide-y">
+                    {lista.map((a) => {
+                      const { Icon, color, bg } = activityIcon(a.action);
+                      return (
+                        <li key={a.id} className="flex items-center gap-3 py-2.5">
+                          <span
+                            className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-lg shrink-0"
+                            style={{ backgroundColor: bg, color }}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{actionLabel(a.action)}</p>
+                            <p className="text-xs text-muted-foreground truncate">{a.quem}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+                            {dateTimeShort(a.createdAt)}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                );
+              })()}
             </div>
           </div>
 

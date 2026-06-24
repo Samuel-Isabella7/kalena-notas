@@ -88,9 +88,7 @@ export class SefazService {
     private danfe: DanfeService,
   ) {}
 
-  // Estado do job de sincronização (em memória — instância única no Render).
-  // O backlog inicial pode ter milhares de docs (ex.: ~15 mil CT-e em SP), o que não
-  // cabe numa requisição HTTP; o sync roda em background e o front acompanha via polling.
+  
   private syncJob: {
     running: boolean;
     startedAt: string | null;

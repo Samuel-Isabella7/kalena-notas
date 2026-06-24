@@ -1,8 +1,8 @@
 'use client';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
-import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { RefreshCw, Loader2, FileText, Inbox, FileCode, FileDown, BadgeCheck, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
 import { ReceivedNfe, ReceivedMeta } from '@/types';
 import { toast } from '@/hooks/use-toast';
@@ -40,7 +40,20 @@ interface SyncProgress {
 function RecebidasContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const q = searchParams.get('q') ?? '';
+  const [buscaInput, setBuscaInput] = useState(q);
+
+  // Busca com debounce → atualiza ?q= (server-side); não derruba os filtros (estado local)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const atual = searchParams.get('q') ?? '';
+      const novo = buscaInput.trim();
+      if (novo !== atual) router.replace(novo ? `/recebidas?q=${encodeURIComponent(novo)}` : '/recebidas');
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buscaInput]);
   const [manifesting, setManifesting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<string>(searchParams.get('uf') ?? 'TODAS'); // UF da empresa
@@ -290,6 +303,26 @@ function RecebidasContent() {
         </div>
       </div>
 
+      {/* Busca */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          value={buscaInput}
+          onChange={(e) => setBuscaInput(e.target.value)}
+          placeholder="Buscar por emitente, CNPJ, nº ou chave…"
+          className="w-full h-10 pl-9 pr-9 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring/30"
+        />
+        {buscaInput && (
+          <button
+            onClick={() => setBuscaInput('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            title="Limpar busca"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Filtro por empresa */}
       {ufs.length > 0 && (
         <div className="flex gap-2 flex-wrap">
@@ -362,6 +395,7 @@ function RecebidasContent() {
                 <th className="px-4 py-2 font-medium">Nº</th>
                 <th className="px-4 py-2 font-medium">Valor</th>
                 <th className="px-4 py-2 font-medium">Empresa</th>
+                <th className="px-4 py-2 font-medium">Manifestação</th>
                 <th className="px-4 py-2 font-medium">Documentos</th>
               </tr>
             </thead>
@@ -382,6 +416,21 @@ function RecebidasContent() {
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     <Badge variant="outline">{n.empresaUf || n.empresaNome}</Badge>
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {(() => {
+                      const st = n.hasXml
+                        ? { txt: 'Manifestada', dot: '#10b981', cls: 'bg-emerald-500/12 text-emerald-600 border border-emerald-500/35' }
+                        : n.tipoDoc === 'CTE'
+                          ? { txt: 'Resumo (s/ XML)', dot: '#94a3b8', cls: 'bg-muted text-muted-foreground border border-border' }
+                          : { txt: 'Pendente', dot: '#f59e0b', cls: 'bg-amber-500/12 text-amber-600 border border-amber-500/35' };
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.cls}`}>
+                          <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: st.dot }} />
+                          {st.txt}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap">
                     {n.hasXml ? (

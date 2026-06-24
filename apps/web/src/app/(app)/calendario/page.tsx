@@ -41,6 +41,16 @@ export default function CalendarioPage() {
   // espaços em branco antes do dia 1 (alinhamento de semana, domingo = 0)
   const leadingBlanks = monthData ? monthData.days[0]?.weekday ?? 0 : 0;
 
+  // Resumo do mês selecionado (somando os dias)
+  const mSum = (monthData?.days ?? []).reduce(
+    (a, d) => ({
+      total: a.total + d.total,
+      pendentes: a.pendentes + d.pendentes,
+      erros: a.erros + d.erros,
+    }),
+    { total: 0, pendentes: 0, erros: 0 },
+  );
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -99,6 +109,42 @@ export default function CalendarioPage() {
         </div>
       )}
 
+      {/* Legenda fixa + resumo do mês */}
+      <div className="rounded-xl border bg-card px-4 py-3 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Hoje
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-green-600" /> Lançado via integração
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <UserCheck className="w-3 h-3 text-indigo-500" /> Lançado Manual
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Clock className="w-3 h-3 text-amber-500" /> Pendente
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <AlertCircle className="w-3 h-3 text-red-500" /> Erro no lançamento
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="px-2 py-0.5 rounded-full bg-muted font-medium tabular-nums">
+            {mSum.total} nota{mSum.total === 1 ? '' : 's'}
+          </span>
+          {mSum.pendentes > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 font-medium tabular-nums">
+              {mSum.pendentes} pendente{mSum.pendentes === 1 ? '' : 's'}
+            </span>
+          )}
+          {mSum.erros > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 font-medium tabular-nums">
+              {mSum.erros} erro{mSum.erros === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Grade de dias */}
       <div className="rounded-lg border bg-card p-4">
         <h2 className="font-semibold mb-4">
@@ -125,13 +171,24 @@ export default function CalendarioPage() {
               {monthData?.days.map((d) => {
                 const blocked = !d.isBusinessDay;
                 const isToday = d.date === todayStr;
+                // erro tem prioridade sobre pendente para o destaque da célula
+                const flag = !blocked && d.erros > 0 ? 'erro' : !blocked && d.pendentes > 0 ? 'pend' : null;
                 const cell = (
                   <div
+                    style={
+                      flag === 'erro'
+                        ? { boxShadow: 'inset 3px 0 0 #ef4444' }
+                        : flag === 'pend'
+                          ? { boxShadow: 'inset 3px 0 0 #f59e0b' }
+                          : undefined
+                    }
                     className={cn(
                       'h-24 rounded-md border p-2 flex flex-col text-sm transition-all',
                       blocked
-                        ? 'bg-muted/50 border-slate-100 text-muted-foreground'
+                        ? 'bg-muted/50 border-border text-muted-foreground'
                         : 'bg-card hover:border-slate-900 hover:shadow-sm cursor-pointer',
+                      flag === 'erro' && 'border-red-500/40',
+                      flag === 'pend' && 'border-amber-500/40',
                       isToday && 'ring-2 ring-blue-500 ring-offset-1 border-blue-500',
                     )}
                   >
@@ -155,25 +212,25 @@ export default function CalendarioPage() {
                     ) : (
                       <div className="mt-auto flex flex-wrap gap-1">
                         {d.lancadas > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-green-700">
+                          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-bold bg-green-500/15 text-green-600">
                             <CheckCircle2 className="w-3 h-3" />
                             {d.lancadas}
                           </span>
                         )}
                         {d.manuais > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600">
+                          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-600">
                             <UserCheck className="w-3 h-3" />
                             {d.manuais}
                           </span>
                         )}
                         {d.pendentes > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600">
+                          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600">
                             <Clock className="w-3 h-3" />
                             {d.pendentes}
                           </span>
                         )}
                         {d.erros > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-red-600">
+                          <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-bold bg-red-500/15 text-red-600">
                             <AlertCircle className="w-3 h-3" />
                             {d.erros}
                           </span>
@@ -192,24 +249,6 @@ export default function CalendarioPage() {
                   </Link>
                 );
               })}
-            </div>
-
-            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Hoje
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3 text-green-700" /> Lançado via integração
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <UserCheck className="w-3 h-3 text-indigo-600" /> Lançado Manual
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Clock className="w-3 h-3 text-amber-600" /> Pendente
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <AlertCircle className="w-3 h-3 text-red-600" /> Erro no lançamento
-              </span>
             </div>
           </>
         )}

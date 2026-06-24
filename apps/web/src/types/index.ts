@@ -108,6 +108,7 @@ export interface DashboardSummary {
     processadas: number;
     anexadas: number;
     valorMes: number;
+    errosOmie: number;
   };
   situacao: { label: string; value: number }[];
   porTipoMes: { tipo: string; qtd: number }[];
