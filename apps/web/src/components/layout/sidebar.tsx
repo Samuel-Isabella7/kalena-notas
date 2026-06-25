@@ -12,6 +12,7 @@ import {
   Landmark,
   Wallet,
   HardDrive,
+  Receipt,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Role } from '@/types';
@@ -34,6 +35,8 @@ const ALL: Role[] = ['CRIADOR', 'ADMIN', 'ADMIN_SERVICO', 'ADMIN_ICMS', 'BALANCO
 const SO_CRIADOR: Role[] = ['CRIADOR'];
 // Notas físicas: todos menos Serviço
 const NOTA_FISICA: Role[] = ['CRIADOR', 'ADMIN', 'ADMIN_ICMS', 'BALANCO'];
+// Contas a Pagar (lançar na Omie): só quem lança
+const LANCADORES: Role[] = ['CRIADOR', 'ADMIN'];
 
 const groups: NavGroup[] = [
   { items: [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ALL }] },
@@ -42,6 +45,7 @@ const groups: NavGroup[] = [
     items: [
       { label: 'Recebidas (SEFAZ)', href: '/recebidas', icon: Inbox, roles: ALL },
       { label: 'Calendário', href: '/calendario', icon: CalendarDays, roles: ALL },
+      { label: 'Contas a Pagar', href: '/contas-a-pagar', icon: Receipt, roles: LANCADORES },
       { label: 'Notas físicas', href: '/notas-fisicas', icon: FileBox, roles: NOTA_FISICA },
     ],
   },

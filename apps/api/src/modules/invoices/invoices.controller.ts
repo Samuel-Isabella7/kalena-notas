@@ -17,7 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as fs from 'fs';
-import { OmieAccount, Role } from '@prisma/client';
+import { InvoiceStatus, OmieAccount, Role } from '@prisma/client';
 import { InvoicesService } from './invoices.service';
 import { UploadInvoiceDto } from './dto/upload-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
@@ -58,6 +58,28 @@ export class InvoicesController {
       throw new BadRequestException('Informe ?date=YYYY-MM-DD');
     }
     return this.invoices.listByDate(date, user.role);
+  }
+
+  @Get('fila')
+  @Roles(Role.CRIADOR, Role.ADMIN)
+  fila(
+    @Query('account') account?: OmieAccount,
+    @Query('status') status?: InvoiceStatus,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.invoices.fila({
+      account: account || undefined,
+      status: status || undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Post('launch-batch')
+  @Roles(Role.CRIADOR, Role.ADMIN)
+  launchBatch(@Body('ids') ids: string[], @CurrentUser() user: AuthUser) {
+    return this.invoices.launchBatch(ids, user.id);
   }
 
   @Get(':id')

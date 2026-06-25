@@ -233,6 +233,79 @@ export class InvoicesService {
     }
   }
 
+  /** Fila de Contas a Pagar (Omie): invoices paginados + contadores. CRIADOR/ADMIN. */
+  async fila(params: {
+    account?: OmieAccount;
+    status?: InvoiceStatus;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const where: Prisma.InvoiceWhereInput = {};
+    if (params.account) where.account = params.account;
+    if (params.status) where.status = params.status;
+
+    const base: Prisma.InvoiceWhereInput = {};
+    if (params.account) base.account = params.account;
+
+    const now = new Date();
+    const inicioMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const fimMes = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+    const page = params.page ?? 1;
+    const pageSize = params.pageSize ?? 50;
+
+    const [total, rows, aLancar, comErro, lancadasMes, valorAgg] = await Promise.all([
+      this.prisma.invoice.count({ where }),
+      this.prisma.invoice.findMany({
+        where,
+        orderBy: { competenceDate: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { uploadedBy: { select: { name: true } }, launchedBy: { select: { name: true } } },
+      }),
+      this.prisma.invoice.count({ where: { ...base, status: InvoiceStatus.PENDENTE } }),
+      this.prisma.invoice.count({ where: { ...base, status: InvoiceStatus.ERRO } }),
+      this.prisma.invoice.count({
+        where: {
+          ...base,
+          status: { in: [InvoiceStatus.LANCADA, InvoiceStatus.MANUAL] },
+          competenceDate: { gte: inicioMes, lt: fimMes },
+        },
+      }),
+      this.prisma.invoice.aggregate({
+        _sum: { valor: true },
+        where: { ...base, status: { in: [InvoiceStatus.PENDENTE, InvoiceStatus.ERRO] } },
+      }),
+    ]);
+
+    return {
+      total,
+      rows: rows.map((r) => this.map(r)),
+      counts: {
+        aLancar,
+        comErro,
+        lancadasMes,
+        valorPagar: valorAgg._sum.valor ? Number(valorAgg._sum.valor) : 0,
+      },
+    };
+  }
+
+  /** Lança/reprocessa uma lista de invoices na Omie (em lote). */
+  async launchBatch(ids: string[], actorId: string) {
+    const lista = Array.isArray(ids) ? ids.filter(Boolean) : [];
+    let lancadas = 0;
+    const erros: Array<{ id: string; erro: string }> = [];
+    for (const id of lista) {
+      try {
+        await this.launch(id, actorId);
+        lancadas++;
+      } catch (e: any) {
+        erros.push({ id, erro: e?.message || 'erro' });
+      }
+    }
+    return { total: lista.length, lancadas, erros };
+  }
+
   private validateForLaunch(invoice: Invoice): string[] {
     const missing: string[] = [];
     if (!invoice.fornecedorDoc) missing.push('CNPJ/CPF do fornecedor');
