@@ -85,7 +85,7 @@ export function Sidebar() {
         <h1 className="text-2xl font-bold tracking-tight">KALENA</h1>
         <p className="text-xs text-emerald-400 tracking-[0.25em] mt-1">NOTAS FISCAIS</p>
       </div>
-      <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+      <nav className="flex-1 p-3 space-y-4 overflow-y-auto sidebar-scroll">
         {groups
           .filter((g) => !g.roles || g.roles.includes(user.role))
           .map((group, gi) => {
