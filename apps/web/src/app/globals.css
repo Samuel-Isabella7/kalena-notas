@@ -61,6 +61,28 @@
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0b3b2e 100%);
 }
 
+/* Telas de autenticação (card branco sobre gradiente): sempre tema claro,
+   mesmo com o tema escuro ativo — evita texto claro sumindo no card branco. */
+.force-light {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 222 47% 11%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 222 47% 11%;
+}
+
 /* Barra de rolagem da sidebar — fixa (sidebar é sempre escura nos 2 temas) */
 .sidebar-scroll {
   scrollbar-width: thin;
