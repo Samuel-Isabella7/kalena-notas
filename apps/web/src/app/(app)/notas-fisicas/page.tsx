@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Upload, FileBox, Trash2, ExternalLink, Inbox } from 'lucide-react';
+import { Loader2, Upload, FileBox, Trash2, ExternalLink, Inbox, Search } from 'lucide-react';
 import { api, apiError } from '@/lib/api';
 import { PhysicalNote, PhysicalNoteMeta } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
@@ -43,6 +43,7 @@ export default function NotasFisicasPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [mesF, setMesF] = useState<string>('TODOS');
+  const [busca, setBusca] = useState('');
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState('');
   const [observacao, setObservacao] = useState('');
@@ -54,10 +55,11 @@ export default function NotasFisicasPage() {
   const canAttach = can('CRIADOR', 'ADMIN');
 
   const { data: notas, isLoading } = useQuery<PhysicalNote[]>({
-    queryKey: ['physical-notes', mesF],
+    queryKey: ['physical-notes', mesF, busca],
     queryFn: async () => {
       const params: Record<string, string> = {};
       if (mesF !== 'TODOS') params.mes = mesF;
+      if (busca.trim()) params.q = busca.trim();
       return (await api.get('/physical-notes', { params })).data;
     },
     enabled: canView,
@@ -163,6 +165,18 @@ export default function NotasFisicasPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground">Buscar</label>
+            <div className="relative mt-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Nome ou observação…"
+                className="w-56 h-10 pl-9 pr-3 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring/30"
+              />
+            </div>
+          </div>
           <div>
             <label className="text-xs text-muted-foreground">Mês</label>
             <Select value={mesF} onValueChange={setMesF}>

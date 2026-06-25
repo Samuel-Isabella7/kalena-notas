@@ -44,8 +44,8 @@ export class PhysicalNotesController {
   }
 
   @Get()
-  list(@Query('mes') mes?: string) {
-    return this.notes.list(mes);
+  list(@Query('mes') mes?: string, @Query('q') q?: string) {
+    return this.notes.list(mes, q);
   }
 
   @Get('meta')

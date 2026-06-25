@@ -64,8 +64,8 @@ export class PhysicalNotesService {
     return this.map(note);
   }
 
-  /** Lista as notas físicas, opcionalmente filtrando por mês (YYYY-MM) do anexo. */
-  async list(mes?: string) {
+  /** Lista as notas físicas, filtrando por mês (YYYY-MM) do anexo e/ou busca (nome/observação). */
+  async list(mes?: string, q?: string) {
     const where: any = {};
     if (mes && /^\d{4}-\d{2}$/.test(mes)) {
       const [y, m] = mes.split('-').map(Number);
@@ -73,6 +73,13 @@ export class PhysicalNotesService {
         gte: new Date(Date.UTC(y, m - 1, 1)),
         lt: new Date(Date.UTC(y, m, 1)),
       };
+    }
+    const termo = (q || '').trim();
+    if (termo) {
+      where.OR = [
+        { nome: { contains: termo, mode: 'insensitive' } },
+        { observacao: { contains: termo, mode: 'insensitive' } },
+      ];
     }
     const rows = await this.prisma.physicalNote.findMany({
       where,

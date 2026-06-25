@@ -183,6 +183,53 @@ export default function MembrosPage() {
         </div>
       )}
 
+      {/* Matriz de papéis (o que cada perfil pode fazer) */}
+      <div className="rounded-lg border bg-card overflow-x-auto">
+        <div className="px-4 py-3 border-b">
+          <h2 className="font-semibold">O que cada perfil pode fazer</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-xs text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium">Recurso</th>
+              {(['CRIADOR', 'ADMIN', 'ADMIN_ICMS', 'ADMIN_SERVICO', 'BALANCO'] as Role[]).map((r) => (
+                <th key={r} className="px-3 py-2 text-center font-medium whitespace-nowrap">
+                  {ROLE_LABELS[r] ?? r}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(
+              [
+                { cap: 'Dashboard / Recebidas / Calendário', roles: ['CRIADOR', 'ADMIN', 'ADMIN_ICMS', 'ADMIN_SERVICO', 'BALANCO'] },
+                { cap: 'Manifestar notas (SEFAZ)', roles: ['CRIADOR', 'ADMIN'] },
+                { cap: 'Anexar e lançar notas (Omie)', roles: ['CRIADOR', 'ADMIN'] },
+                { cap: 'Contas a Pagar', roles: ['CRIADOR', 'ADMIN'] },
+                { cap: 'Ver notas físicas', roles: ['CRIADOR', 'ADMIN', 'ADMIN_ICMS', 'BALANCO'] },
+                { cap: 'Anexar notas físicas', roles: ['CRIADOR', 'ADMIN'] },
+                { cap: 'Integrações', roles: ['CRIADOR'] },
+                { cap: 'Configurações', roles: ['CRIADOR'] },
+                { cap: 'Gerenciar membros', roles: ['CRIADOR'] },
+              ] as { cap: string; roles: Role[] }[]
+            ).map((row) => (
+              <tr key={row.cap} className="border-t">
+                <td className="px-4 py-2">{row.cap}</td>
+                {(['CRIADOR', 'ADMIN', 'ADMIN_ICMS', 'ADMIN_SERVICO', 'BALANCO'] as Role[]).map((r) => (
+                  <td key={r} className="px-3 py-2 text-center">
+                    {row.roles.includes(r) ? (
+                      <span className="text-emerald-600 font-bold">✓</span>
+                    ) : (
+                      <span className="text-muted-foreground/40">–</span>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {/* Dialog de convite */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

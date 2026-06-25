@@ -1,18 +1,34 @@
 'use client';
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { Loader2, Landmark, Wallet, HardDrive, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
-import { api } from '@/lib/api';
-import { DashboardSummary } from '@/types';
+import { Loader2, Landmark, Wallet, HardDrive, Sparkles, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { api, apiError } from '@/lib/api';
+import { DashboardSummary, ReceivedMeta } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
+import { toast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 
 export default function IntegracoesPage() {
   const { can } = useAuth();
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
 
+  const enabled = can('CRIADOR');
   const { data, isLoading } = useQuery<DashboardSummary>({
     queryKey: ['dashboard'],
     queryFn: async () => (await api.get('/dashboard')).data,
-    enabled: can('CRIADOR'),
+    enabled,
+  });
+  const { data: meta } = useQuery<ReceivedMeta>({
+    queryKey: ['received-meta'],
+    queryFn: async () => (await api.get('/sefaz/received/meta')).data,
+    enabled,
+  });
+  const { data: fila } = useQuery<{ counts: { aLancar: number; comErro: number } }>({
+    queryKey: ['contas-fila', 'TODAS', 'TODOS', 1],
+    queryFn: async () => (await api.get('/invoices/fila', { params: { page: '1', pageSize: '1' } })).data,
+    enabled,
   });
 
   if (!can('CRIADOR')) {
@@ -31,14 +47,28 @@ export default function IntegracoesPage() {
     );
   }
 
+  const sincronizar = async () => {
+    setSyncing(true);
+    try {
+      await api.post('/sefaz/sync');
+      toast({ title: 'Sincronização iniciada', description: 'Rodando em segundo plano.', variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['sefaz-sync-progress'] });
+    } catch (e) {
+      toast({ title: 'Erro ao sincronizar', description: apiError(e), variant: 'destructive' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const i = data.integracoes;
   const cards = [
     {
       label: 'SEFAZ',
       icon: Landmark,
       ok: i.sefaz,
-      desc: 'Captura de NF-e e CT-e emitidas contra a empresa (Distribuição de DFe) e manifestação do destinatário.',
       okText: 'Sincronizado',
+      desc: 'Captura de NF-e e CT-e (Distribuição de DFe) e manifestação do destinatário.',
+      metric: `${(meta?.total ?? 0).toLocaleString('pt-BR')} capturadas · ${(meta?.manifestaveis ?? 0).toLocaleString('pt-BR')} a manifestar`,
       href: '/recebidas',
       hrefText: 'Abrir Recebidas',
     },
@@ -46,17 +76,19 @@ export default function IntegracoesPage() {
       label: 'Omie (Contas a Pagar)',
       icon: Wallet,
       ok: i.omie,
-      desc: 'Lançamento das notas como Conta a Pagar nas contas SP e RJ.',
       okText: 'Conectado',
-      href: '/calendario',
-      hrefText: 'Abrir Calendário',
+      desc: 'Lançamento das notas como Conta a Pagar (SP e RJ).',
+      metric: `${(fila?.counts.aLancar ?? 0).toLocaleString('pt-BR')} a lançar · ${(fila?.counts.comErro ?? 0).toLocaleString('pt-BR')} com erro`,
+      href: '/contas-a-pagar',
+      hrefText: 'Abrir fila',
     },
     {
       label: 'Google Drive',
       icon: HardDrive,
       ok: i.drive,
-      desc: 'Armazenamento dos arquivos (notas anexadas, XMLs da SEFAZ e notas físicas).',
       okText: 'Conectado',
+      desc: 'Armazenamento dos arquivos (notas, XMLs da SEFAZ e notas físicas).',
+      metric: i.drive ? 'Arquivos salvos no Drive' : 'Modo local (sem Drive)',
       href: '/notas-fisicas',
       hrefText: 'Abrir Notas físicas',
     },
@@ -64,18 +96,27 @@ export default function IntegracoesPage() {
       label: 'Leitura por IA (Gemini)',
       icon: Sparkles,
       ok: i.ia,
-      desc: 'Leitura automática dos PDFs anexados (fornecedor, valor, datas), inclusive escaneados.',
       okText: 'Ativa',
-      href: '/calendario',
-      hrefText: 'Abrir Calendário',
+      desc: 'Leitura automática dos PDFs anexados (fornecedor, valor, datas), inclusive escaneados.',
+      metric: i.ia ? 'Lendo PDFs no anexo' : 'Desativada',
+      href: '/contas-a-pagar',
+      hrefText: 'Abrir Contas a Pagar',
     },
   ];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Integrações</h1>
-        <p className="text-sm text-muted-foreground">Status das integrações do sistema.</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Integrações</h1>
+          <p className="text-sm text-muted-foreground">
+            Visão geral e ações. Para chaves e credenciais, vá em Configurações.
+          </p>
+        </div>
+        <Button onClick={sincronizar} disabled={syncing}>
+          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          Sincronizar agora
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -100,13 +141,26 @@ export default function IntegracoesPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground mt-3">{c.desc}</p>
-              <Link href={c.href} className="mt-3 inline-block text-xs text-blue-600 hover:underline">
-                {c.hrefText}
-              </Link>
+              <p className="text-xs font-medium mt-2 tabular-nums">{c.metric}</p>
+              <div className="mt-3 flex items-center gap-3">
+                <Link href={c.href} className="text-xs text-blue-600 hover:underline">
+                  {c.hrefText}
+                </Link>
+                {c.label === 'SEFAZ' && (
+                  <button onClick={sincronizar} disabled={syncing} className="text-xs text-emerald-700 hover:underline disabled:opacity-50">
+                    Sincronizar
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        As credenciais (chaves Omie, certificado SEFAZ, conta do Drive, chave da IA) são definidas com
+        segurança nas variáveis de ambiente do servidor. Veja o status em <Link href="/configuracoes" className="text-blue-600 hover:underline">Configurações</Link>.
+      </p>
     </div>
   );
 }
